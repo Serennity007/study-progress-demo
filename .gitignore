@@ -1,0 +1,4 @@
+backend/zhxx.db
+backend/export_tmp.xlsx
+backend/__pycache__/
+render-check/

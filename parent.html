@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家长查看 · 成都智慧象留学</title>
+  <link rel="stylesheet" href="css/style.css?v=20260830h">
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <span class="brand">
+      成都智慧象留学
+      <span class="brand-sub">教学质量内部管理系统 · 家长端</span>
+    </span>
+    <span class="spacer"></span>
+    <span class="user-chip">
+      <span class="role-badge">家长</span>
+      <span id="topbar-user">未登录</span>
+    </span>
+    <a class="user-link" id="pwd-link" href="#">修改密码</a>
+    <a class="user-link" id="logout-link" href="index.html">退出登录</a>
+  </header>
+
+  <!-- 家长查看页（只读摘要） -->
+  <main class="page page-narrow" id="parent-page" style="display:none;">
+
+    <div class="section-head">
+      <h2>孩子的备考摘要</h2>
+      <span class="sec-note">数据与老师端实时一致 · 每周自动更新</span>
+    </div>
+
+    <!-- 个人信息与进度 -->
+    <section class="card">
+      <div class="profile-head">
+        <span class="avatar lg" id="parent-avatar"></span>
+        <div class="p-info">
+          <div class="p-name" id="parent-name">—</div>
+          <div class="p-meta" id="parent-meta"></div>
+        </div>
+        <span class="tag" id="parent-stage" style="font-size:13px;padding:5px 16px;"></span>
+      </div>
+      <div class="ring-wrap">
+        <div class="ring-box">
+          <svg viewBox="0 0 168 168" role="img" aria-label="总体备考进度环形图">
+            <circle cx="84" cy="84" r="70" fill="none" stroke="#EFEAE0" stroke-width="12"/>
+            <circle id="ring-fill" cx="84" cy="84" r="70" fill="none" stroke="#C9A85C" stroke-width="12"
+              stroke-linecap="round" stroke-dasharray="439.8" stroke-dashoffset="439.8"
+              style="transition:stroke-dashoffset 1s ease;"/>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-value" id="ring-value">0<span class="unit">%</span></div>
+            <div class="ring-label">备考进度</div>
+          </div>
+        </div>
+        <div class="ring-side">
+          <div class="stage-row">
+            <span style="color:#6E7B88;font-size:13px;flex:none;">当前阶段：</span>
+            <div class="stage-track" id="stage-track"></div>
+          </div>
+          <div class="goal-card">
+            <div class="g-label">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+              本阶段目标
+            </div>
+            <span id="parent-goal">—</span>
+          </div>
+          <div class="goal-card" style="display:flex;gap:20px;flex-wrap:wrap;">
+            <span style="font-size:13px;color:#6E7B88;">本周学习 <b id="parent-week-hours" style="color:#12233A;font-family:Georgia,serif;font-size:16px;">0</b> 小时</span>
+            <span style="font-size:13px;color:#6E7B88;">在读课程 <b id="parent-subject-count" style="color:#12233A;font-family:Georgia,serif;font-size:16px;">0</b> 门</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 最近教师评语 -->
+    <div class="section-head">
+      <h2>最近教师评语</h2>
+      <span class="sec-note">来自老师的课后反馈</span>
+    </div>
+    <section class="card">
+      <div class="timeline" id="comment-list"></div>
+    </section>
+
+    <!-- 最新测评成绩 -->
+    <div class="section-head">
+      <h2>最新阶段测评</h2>
+      <span class="sec-note">按测评时间倒序</span>
+    </div>
+    <section class="exam-cards" id="exam-cards"></section>
+
+  </main>
+
+  <footer class="site-footer" style="display:none;" id="page-footer">成都智慧象留学 · 教学质量内部管理系统</footer>
+
+  <!-- 修改密码弹窗 -->
+  <div class="modal-mask" id="pwd-mask">
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="pwd-title">
+      <div class="modal-head">
+        <div class="m-title" id="pwd-title">
+          <span>修改密码</span>
+          <div class="m-sub">为了账号安全，建议定期更换密码</div>
+        </div>
+        <button class="modal-close" id="pwd-close" type="button" title="关闭" aria-label="关闭弹窗">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="pwd-form" autocomplete="off" novalidate>
+          <div class="form-item" style="margin-bottom:14px;">
+            <label>原密码</label>
+            <input type="password" id="pw-old" placeholder="请输入当前密码" required>
+          </div>
+          <div class="form-item" style="margin-bottom:14px;">
+            <label>新密码（至少 6 位）</label>
+            <input type="password" id="pw-new" placeholder="请输入新密码" required>
+          </div>
+          <div class="form-item" style="margin-bottom:14px;">
+            <label>确认新密码</label>
+            <input type="password" id="pw-new2" placeholder="请再次输入新密码" required>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-ghost" type="button" id="pw-cancel">取消</button>
+            <button class="btn btn-primary" type="submit">保存新密码</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/mock-data.js?v=20260830h"></script>
+  <script src="js/api.js?v=20260830h"></script>
+  <script src="js/common.js?v=20260830h"></script>
+  <script src="js/parent.js?v=20260830h"></script>
+</body>
+</html>

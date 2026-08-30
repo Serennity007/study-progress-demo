@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>老师工作台 · 成都智慧象留学</title>
+  <link rel="stylesheet" href="css/style.css?v=20260830h">
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <span class="brand">
+      成都智慧象留学
+      <span class="brand-sub">教学质量内部管理系统 · 老师端</span>
+    </span>
+    <span class="spacer"></span>
+    <span class="user-chip">
+      <span class="role-badge">老师</span>
+      <span id="topbar-user">—</span>
+    </span>
+    <a class="user-link pending-bell" id="pending-bell" href="#" title="待评阅记录">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      待评阅<span class="badge-count" id="pending-badge" hidden>0</span>
+    </a>
+    <a class="user-link" id="config-link" href="#">班级与阶段配置</a>
+    <a class="user-link" id="audit-link" href="#">审计日志</a>
+    <a class="user-link" id="pwd-link" href="#">修改密码</a>
+    <a class="user-link" id="logout-link" href="index.html">退出登录</a>
+  </header>
+
+  <main class="page">
+
+    <!-- 统计总览 -->
+    <section class="stat-grid" aria-label="数据总览">
+      <div class="stat-card">
+        <span class="stat-icon navy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </span>
+        <div class="stat-meta">
+          <div class="stat-value" id="stat-total">0<span class="unit">人</span></div>
+          <div class="stat-label">在读学员</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </span>
+        <div class="stat-meta">
+          <div class="stat-value" id="stat-hours">0<span class="unit">小时</span></div>
+          <div class="stat-label">本周学习时长</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </span>
+        <div class="stat-meta">
+          <div class="stat-value" id="stat-progress">0<span class="unit">%</span></div>
+          <div class="stat-label">平均备考进度</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </span>
+        <div class="stat-meta">
+          <div class="stat-value" id="stat-pending">0<span class="unit">条</span></div>
+          <div class="stat-label">待评阅记录</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 学员列表 -->
+    <div class="section-head">
+      <h2>学员备考档案</h2>
+      <span class="sec-note">点击学员卡片查看详情</span>
+      <button class="btn btn-accent" type="button" id="btn-new-student" style="height:34px;padding:0 16px;font-size:13px;margin-left:auto;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        新建学员
+      </button>
+      <button class="btn btn-ghost" type="button" id="btn-quick-note" style="height:34px;padding:0 16px;font-size:13px;margin-left:8px;">⚡ 教师速记</button>
+    </div>
+
+    <div class="toolbar">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="搜索姓名或学号…" aria-label="搜索姓名或学号">
+      </div>
+      <div class="filter-tabs" id="stage-filter" role="tablist" aria-label="按阶段筛选">
+        <button class="filter-tab active" data-stage="全部" type="button">全部阶段</button>
+        <button class="filter-tab" data-stage="基础期" type="button">基础期</button>
+        <button class="filter-tab" data-stage="强化期" type="button">强化期</button>
+        <button class="filter-tab" data-stage="冲刺期" type="button">冲刺期</button>
+      </div>
+      <select class="tb-select" id="class-filter" aria-label="按班级筛选">
+        <option value="全部">全部班级</option>
+      </select>
+      <select class="tb-select" id="subject-filter" aria-label="按科目筛选">
+        <option value="全部">全部科目</option>
+      </select>
+      <button class="btn btn-ghost" type="button" id="btn-export" style="height:38px;padding:0 16px;font-size:13px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        导出Excel
+      </button>
+      <span class="result-count" id="result-count"></span>
+    </div>
+    <div class="toolbar" style="margin-top:-10px;">
+      <label class="chk-line"><input type="checkbox" id="show-inactive"> 显示已停用学员</label>
+    </div>
+
+    <section class="student-grid" id="student-grid">
+      <!-- 学员卡片由 js/admin.js 渲染 -->
+    </section>
+
+  </main>
+
+  <footer class="site-footer">成都智慧象留学 · 教学质量内部管理系统</footer>
+
+  <!-- 学员详情弹窗 -->
+  <div class="modal-mask" id="detail-mask">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-head">
+        <span class="avatar lg" id="modal-avatar"></span>
+        <div class="m-title" id="modal-title">
+          <span id="modal-name">—</span>
+          <div class="m-sub" id="modal-sub"></div>
+        </div>
+        <button class="modal-close" id="modal-close" type="button" title="关闭" aria-label="关闭弹窗">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px;align-items:center;">
+          <span class="parent-chip" id="modal-parent-account" title="家长登录账号（复制后告知家长）"></span>
+          <button class="btn-mini" type="button" id="btn-copy-parent">复制家长账号</button>
+          <button class="btn btn-ghost" type="button" id="btn-toggle-status" style="height:32px;padding:0 14px;font-size:13px;">停用学员</button>
+          <button class="btn btn-ghost" type="button" id="btn-edit-profile" style="height:32px;padding:0 14px;font-size:13px;">编辑学员档案</button>
+        </div>
+        <div id="status-form-wrap" style="display:none;margin-bottom:16px;">
+          <form class="card" id="status-form" style="box-shadow:none;">
+            <div class="form-item" style="margin-bottom:10px;">
+              <label>停用原因（选填，将记入审计日志）</label>
+              <input type="text" id="sf-reason" placeholder="如：已出分结课、转学等">
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-ghost" type="button" id="sf-cancel">取消</button>
+              <button class="btn btn-primary" type="submit" id="sf-submit">确认停用</button>
+            </div>
+          </form>
+        </div>
+        <div id="profile-form-wrap" style="display:none;margin-bottom:16px;">
+          <form class="card" id="profile-form" style="box-shadow:none;">
+            <div class="form-grid">
+              <div class="form-item">
+                <label>姓名<span class="req">*</span></label>
+                <input type="text" id="pf-name" required>
+              </div>
+              <div class="form-item">
+                <label>年级</label>
+                <select id="pf-grade">
+                  <option>高一</option><option>高二</option><option>高三</option>
+                </select>
+              </div>
+              <div class="form-item">
+                <label>班级</label>
+                <input type="text" id="pf-classname" list="class-options" placeholder="如：雅思精品班">
+              </div>
+              <div class="form-item">
+                <label>当前阶段</label>
+                <select id="pf-stage">
+                  <option>基础期</option><option>强化期</option><option>冲刺期</option>
+                </select>
+              </div>
+              <div class="form-item full">
+                <label>备考课程（勾选科目）</label>
+                <div class="subject-box" id="pf-subjects-box"></div>
+              </div>
+              <div class="form-item">
+                <label>入学日期</label>
+                <input type="date" id="pf-enroll">
+              </div>
+              <div class="form-item full">
+                <label>阶段目标</label>
+                <input type="text" id="pf-goal" placeholder="如：10 月首考雅思总分 6.5">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-ghost" type="button" id="pf-cancel">取消</button>
+              <button class="btn btn-primary" type="submit">保存档案</button>
+            </div>
+          </form>
+        </div>
+        <div class="detail-summary" id="modal-summary"></div>
+        <div class="detail-grid">
+          <div>
+            <div class="detail-block">
+              <h3>备考进度趋势（近 6 次评估）</h3>
+              <div class="trend-chart" id="modal-trend"></div>
+            </div>
+            <div class="detail-block">
+              <h3 style="display:flex;justify-content:space-between;align-items:center;">
+                <span>阶段测评成绩</span>
+                <button class="btn btn-ghost" type="button" id="btn-add-exam" style="height:32px;padding:0 14px;font-size:13px;">录入成绩</button>
+              </h3>
+              <div id="exam-form-wrap" style="display:none;margin-bottom:16px;">
+                <form class="card" id="exam-form" style="box-shadow:none;">
+                  <div class="form-grid">
+                    <div class="form-item">
+                      <label>阶段<span class="req">*</span></label>
+                      <select id="ef-stage">
+                        <option>基础期</option><option>强化期</option><option>冲刺期</option>
+                      </select>
+                    </div>
+                    <div class="form-item">
+                      <label>课程科目<span class="req">*</span></label>
+                      <div style="display:flex;gap:6px;align-items:center;">
+                        <select id="ef-subject" style="flex:1;"></select>
+                        <button class="btn-mini" type="button" id="ef-add-subject">＋新增</button>
+                      </div>
+                      <div id="ef-new-subject-row" style="display:none;gap:6px;margin-top:8px;">
+                        <input type="text" class="review-input" id="ef-new-subject-input" placeholder="新科目名称" style="flex:1;">
+                        <button class="btn-mini primary" type="button" id="ef-new-subject-ok">确认</button>
+                        <button class="btn-mini" type="button" id="ef-new-subject-cancel">取消</button>
+                      </div>
+                    </div>
+                    <div class="form-item">
+                      <label>分数<span class="req">*</span></label>
+                      <input type="number" id="ef-score" min="0" max="1200" step="0.5" placeholder="雅思 4–9 / 百分制" required>
+                    </div>
+                    <div class="form-item">
+                      <label>测评日期<span class="req">*</span></label>
+                      <input type="date" id="ef-date" required>
+                    </div>
+                  </div>
+                  <div class="form-actions">
+                    <button class="btn btn-ghost" type="button" id="ef-cancel">取消</button>
+                    <button class="btn btn-primary" type="submit">保存成绩</button>
+                  </div>
+                </form>
+              </div>
+              <div id="modal-exams"></div>
+            </div>
+          </div>
+          <div class="detail-block">
+            <h3 style="display:flex;justify-content:space-between;align-items:center;">
+              <span>学习记录时间线</span>
+              <button class="btn btn-accent" type="button" id="btn-add-record" style="height:32px;padding:0 14px;font-size:13px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                添加学习记录
+              </button>
+            </h3>
+            <div id="record-form-wrap" style="display:none;margin-bottom:16px;">
+              <form class="card" id="record-form" style="box-shadow:none;">
+                <div class="form-grid">
+                  <div class="form-item">
+                    <label>学习日期<span class="req">*</span></label>
+                    <input type="date" id="rf-date" required>
+                  </div>
+                  <div class="form-item">
+                    <label>课程科目<span class="req">*</span></label>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                      <select id="rf-subject" style="flex:1;"></select>
+                      <button class="btn-mini" type="button" id="rf-add-subject">＋新增</button>
+                    </div>
+                    <div id="rf-new-subject-row" style="display:none;gap:6px;margin-top:8px;">
+                      <input type="text" class="review-input" id="rf-new-subject-input" placeholder="新科目名称" style="flex:1;">
+                      <button class="btn-mini primary" type="button" id="rf-new-subject-ok">确认</button>
+                      <button class="btn-mini" type="button" id="rf-new-subject-cancel">取消</button>
+                    </div>
+                  </div>
+                  <div class="form-item full">
+                    <label>学习内容<span class="req">*</span></label>
+                    <textarea id="rf-content" placeholder="请输入本次学习的主要内容…" required></textarea>
+                  </div>
+                  <div class="form-item">
+                    <label>学习时长（小时）<span class="req">*</span></label>
+                    <input type="number" id="rf-duration" min="0.5" max="12" step="0.5" value="1.5" required>
+                  </div>
+                  <div class="form-item">
+                    <label>完成状态</label>
+                    <select id="rf-status">
+                      <option value="已完成">已完成</option>
+                      <option value="待评阅">待评阅</option>
+                    </select>
+                  </div>
+                  <div class="form-item full">
+                    <label>教师评语</label>
+                    <input type="text" id="rf-comment" placeholder="选填，如：完成质量高，继续保持">
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <button class="btn btn-ghost" type="button" id="rf-cancel">取消</button>
+                  <button class="btn btn-primary" type="submit">保存记录</button>
+                </div>
+              </form>
+            </div>
+            <div class="timeline" id="modal-timeline"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新建学员弹窗 -->
+  <div class="modal-mask" id="ns-mask">
+    <div class="modal modal-md" role="dialog" aria-modal="true" aria-labelledby="ns-title">
+      <div class="modal-head">
+        <div class="m-title" id="ns-title">
+          <span>新建学员</span>
+          <div class="m-sub">学号自动分配，初始密码 zx123456；家长账号 P+学号数字同步创建</div>
+        </div>
+        <button class="modal-close" id="ns-close" type="button" aria-label="关闭弹窗">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="ns-form" autocomplete="off" novalidate>
+          <div class="form-grid">
+            <div class="form-item">
+              <label>姓名<span class="req">*</span></label>
+              <input type="text" id="ns-name" placeholder="学员姓名" required>
+            </div>
+            <div class="form-item">
+              <label>年级</label>
+              <select id="ns-grade"><option>高一</option><option>高二</option><option>高三</option></select>
+            </div>
+            <div class="form-item">
+              <label>班级</label>
+              <input type="text" id="ns-classname" list="class-options" placeholder="选择或输入班级">
+            </div>
+            <div class="form-item">
+              <label>当前阶段</label>
+              <select id="ns-stage"><option>基础期</option><option>强化期</option><option>冲刺期</option></select>
+            </div>
+            <div class="form-item full">
+              <label>备考课程（至少勾选一门）<span class="req">*</span></label>
+              <div class="subject-box" id="ns-subjects-box"></div>
+            </div>
+            <div class="form-item">
+              <label>入学日期</label>
+              <input type="date" id="ns-enroll">
+            </div>
+            <div class="form-item full">
+              <label>阶段目标</label>
+              <input type="text" id="ns-goal" placeholder="如：10 月首考雅思总分 6.5">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-ghost" type="button" id="ns-cancel">取消</button>
+            <button class="btn btn-primary" type="submit">创建学员</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 教师速记弹窗 -->
+  <div class="modal-mask" id="qn-mask">
+    <div class="modal modal-md" role="dialog" aria-modal="true" aria-labelledby="qn-title">
+      <div class="modal-head">
+        <div class="m-title" id="qn-title">
+          <span>⚡ 教师速记</span>
+          <div class="m-sub">课后快速登记，默认已完成，30 秒搞定</div>
+        </div>
+        <button class="modal-close" id="qn-close" type="button" aria-label="关闭弹窗">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="qn-form" autocomplete="off" novalidate>
+          <div class="form-grid">
+            <div class="form-item full">
+              <label>学员<span class="req">*</span></label>
+              <select id="qn-student"></select>
+            </div>
+            <div class="form-item">
+              <label>科目<span class="req">*</span></label>
+              <select id="qn-subject"></select>
+            </div>
+            <div class="form-item">
+              <label>时长（小时）</label>
+              <input type="number" id="qn-duration" min="0.5" max="12" step="0.5" value="1.0">
+            </div>
+            <div class="form-item full">
+              <label>课堂要点<span class="req">*</span></label>
+              <input type="text" id="qn-content" placeholder="一句话记录本次课要点…" required>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-ghost" type="button" id="qn-cancel">取消</button>
+            <button class="btn btn-primary" type="submit">完成速记</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导出 Excel 弹窗 -->
+  <div class="modal-mask" id="export-mask">
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="export-title">
+      <div class="modal-head">
+        <div class="m-title" id="export-title">
+          <span>导出 Excel</span>
+          <div class="m-sub">按入学学期筛选导出学员进度总览</div>
+        </div>
+        <button class="modal-close" id="export-close" type="button" aria-label="关闭弹窗">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="export-form">
+          <div class="form-item" style="margin-bottom:14px;">
+            <label>学期范围</label>
+            <select id="export-semester"></select>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-ghost" type="button" id="export-cancel">取消</button>
+            <button class="btn btn-primary" type="submit">导出</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 班级与阶段配置弹窗 -->
+  <div class="modal-mask" id="config-mask">
+    <div class="modal modal-md" role="dialog" aria-modal="true" aria-labelledby="config-title">
+      <div class="modal-head">
+        <div class="m-title" id="config-title">
+          <span>班级与阶段配置</span>
+          <div class="m-sub">班级用于新建学员与筛选；阶段标准说明展示给家长与学员</div>
+        </div>
+        <button class="modal-close" id="config-close" type="button" aria-label="关闭弹窗">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-grid" style="grid-template-columns:1fr 1.4fr;">
+          <div class="detail-block">
+            <h3>班级</h3>
+            <div id="class-list" class="cfg-list"></div>
+            <div style="display:flex;gap:6px;margin-top:10px;">
+              <input type="text" class="review-input" id="cfg-new-class" placeholder="新班级名称" style="flex:1;">
+              <button class="btn-mini primary" type="button" id="cfg-add-class">新增班级</button>
+            </div>
+          </div>
+          <div class="detail-block">
+            <h3>阶段划分标准</h3>
+            <div id="stage-list" class="cfg-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 审计日志弹窗 -->
+  <div class="modal-mask" id="audit-mask">
+    <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="audit-title">
+      <div class="modal-head">
+        <div class="m-title" id="audit-title">
+          <span>操作审计日志</span>
+          <div class="m-sub">档案变更、评阅、成绩、导出、密码与配置操作全程留痕</div>
+        </div>
+        <select class="tb-select" id="audit-action-filter" style="margin-right:8px;">
+          <option value="全部">全部动作</option>
+        </select>
+        <button class="modal-close" id="audit-close" type="button" aria-label="关闭弹窗">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="audit-table-wrap"><div class="empty-tip">加载中…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 修改密码弹窗 -->
+  <div class="modal-mask" id="pwd-mask">
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="pwd-title">
+      <div class="modal-head">
+        <div class="m-title" id="pwd-title">
+          <span>修改密码</span>
+          <div class="m-sub">为了账号安全，建议定期更换密码</div>
+        </div>
+        <button class="modal-close" id="pwd-close" type="button" title="关闭" aria-label="关闭弹窗">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="pwd-form" autocomplete="off" novalidate>
+          <div class="form-item" style="margin-bottom:14px;">
+            <label>原密码</label>
+            <input type="password" id="pw-old" placeholder="请输入当前密码" required>
+          </div>
+          <div class="form-item" style="margin-bottom:14px;">
+            <label>新密码（至少 6 位）</label>
+            <input type="password" id="pw-new" placeholder="请输入新密码" required>
+          </div>
+          <div class="form-item" style="margin-bottom:14px;">
+            <label>确认新密码</label>
+            <input type="password" id="pw-new2" placeholder="请再次输入新密码" required>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-ghost" type="button" id="pw-cancel">取消</button>
+            <button class="btn btn-primary" type="submit">保存新密码</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="class-options"></datalist>
+
+  <!-- 待评阅下拉面板 -->
+  <div class="pending-panel" id="pending-panel" hidden></div>
+
+  <script src="js/mock-data.js?v=20260830h"></script>
+  <script src="js/api.js?v=20260830h"></script>
+  <script src="js/common.js?v=20260830h"></script>
+  <script src="js/admin.js?v=20260830h"></script>
+</body>
+</html>

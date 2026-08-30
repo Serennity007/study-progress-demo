@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 · 成都智慧象留学</title>
+  <link rel="stylesheet" href="css/style.css?v=20260830h">
+</head>
+<body class="login-body">
+
+  <!-- 左侧：品牌区 -->
+  <aside class="login-brand">
+    <h1 class="lb-name-zh">成都智慧象留学</h1>
+    <div class="lb-name-en">ZHIHUIXIANG STUDY ABROAD</div>
+    <div class="lb-divider"></div>
+    <p class="lb-slogan">让每一段留学备考都有迹可循</p>
+    <div class="lb-programs" aria-label="国际课程体系">
+      <div class="pg-item"><div class="pg-name">IELTS</div><div class="pg-sub">雅思 4 科</div></div>
+      <div class="pg-item"><div class="pg-name">TOEFL</div><div class="pg-sub">托福 4 科</div></div>
+      <div class="pg-item"><div class="pg-name">A-Level</div><div class="pg-sub">4 门主流学科</div></div>
+      <div class="pg-item"><div class="pg-name">AP</div><div class="pg-sub">5 门美国先修</div></div>
+    </div>
+    <div class="lb-foot">成都智慧象留学 · 教学质量内部管理系统</div>
+  </aside>
+
+  <!-- 右侧：登录区 -->
+  <main class="login-main">
+    <section class="login-card">
+      <h2 class="lc-title">登录工作台</h2>
+      <p class="lc-sub">教学质量内部管理系统 · 演示环境</p>
+
+      <div class="login-tabs" id="login-tabs" role="tablist">
+        <button type="button" class="login-tab active" data-role="teacher" role="tab" aria-selected="true">老师登录</button>
+        <button type="button" class="login-tab" data-role="student" role="tab" aria-selected="false">学生登录</button>
+        <button type="button" class="login-tab" data-role="parent" role="tab" aria-selected="false">家长登录</button>
+      </div>
+
+      <form id="login-form" autocomplete="off" novalidate>
+
+        <!-- 老师登录 -->
+        <div class="login-group" id="group-teacher">
+          <div class="field" id="field-t-account">
+            <label for="t-account">账号</label>
+            <input type="text" id="t-account" placeholder="请输入工号或手机号">
+            <span class="f-hint">演示账号：teacher</span>
+          </div>
+          <div class="field" id="field-t-password">
+            <label for="t-password">密码</label>
+            <input type="password" id="t-password" placeholder="请输入密码">
+          </div>
+        </div>
+
+        <!-- 学生登录 -->
+        <div class="login-group" id="group-student" hidden>
+          <div class="field" id="field-s-account">
+            <label for="s-account">学号</label>
+            <input type="text" id="s-account" placeholder="请输入本人学号，如 S2026001">
+            <span class="f-hint">演示学号：S2026001–S2026010</span>
+          </div>
+          <div class="field" id="field-s-password">
+            <label for="s-password">密码</label>
+            <input type="password" id="s-password" placeholder="请输入密码">
+          </div>
+        </div>
+
+        <!-- 家长登录 -->
+        <div class="login-group" id="group-parent" hidden>
+          <div class="field" id="field-p-account">
+            <label for="p-account">家长账号</label>
+            <input type="text" id="p-account" placeholder="请输入家长账号，如 P2026001">
+            <span class="f-hint">家长账号 = 字母 P + 孩子学号数字</span>
+          </div>
+          <div class="field" id="field-p-password">
+            <label for="p-password">密码</label>
+            <input type="password" id="p-password" placeholder="请输入密码">
+          </div>
+        </div>
+
+        <div class="login-error" id="login-error" role="alert">账号或密码不正确</div>
+
+        <button type="submit" class="btn-login" id="btn-login">登 录</button>
+
+        <div class="demo-note" id="demo-note">
+          演示环境：老师账号 <b>teacher</b>，学生输入本人学号，家长账号为 <b>P+学号数字</b>（如 P2026001），初始密码均为 <b>zx123456</b>。
+        </div>
+      </form>
+    </section>
+
+    <p class="login-footer">成都智慧象留学 · 教学质量内部管理系统</p>
+  </main>
+
+  <script src="js/mock-data.js?v=20260830h"></script>
+  <script src="js/api.js?v=20260830h"></script>
+  <script src="js/common.js?v=20260830h"></script>
+</body>
+</html>

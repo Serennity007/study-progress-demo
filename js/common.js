@@ -500,8 +500,20 @@
     todayStr: todayStr
   };
 
+  /** 全站水印：左下角署名（所有页面可见，不影响交互） */
+  function initWatermark() {
+    if (document.getElementById('zhxx-wm')) { return; }
+    var el = document.createElement('div');
+    el.id = 'zhxx-wm';
+    el.className = 'wm-credit';
+    el.textContent = 'made by Jessie';
+    el.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(el);
+  }
+
   window.ZHXX_READY.then(function () {
     initLoginPage();
     initPasswordModal();
+    initWatermark();
   });
 })();

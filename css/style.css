@@ -1361,3 +1361,18 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--c-
   .login-brand { flex: none; }
   .login-main { flex: none; }
 }
+
+/* ===== 全站水印（左下角署名） ===== */
+.wm-credit {
+  position: fixed;
+  left: 10px;
+  bottom: 6px;
+  z-index: 200;
+  font-family: var(--f-serif);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  color: rgba(201, 168, 92, 0.85);
+  text-shadow: 0 0 6px rgba(14, 27, 44, 0.18);
+  pointer-events: none;
+  user-select: none;
+}

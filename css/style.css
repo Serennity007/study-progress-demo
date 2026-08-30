@@ -1266,3 +1266,98 @@ input, select, textarea { font-family: inherit; font-size: 14px; color: var(--c-
 .pp-row:hover { background: var(--c-gold-soft); }
 .pp-name { font-size: 13px; color: var(--c-text); flex: 1; }
 .pp-no { font-family: var(--f-num); font-size: 11.5px; color: var(--c-text-light); }
+
+/* ================= 手机适配（≤768 补强 + ≤576 手机档） ================= */
+.config-grid { grid-template-columns: 1fr 1.4fr; }
+
+@media (max-width: 768px) {
+  .topbar { height: auto; min-height: 56px; flex-wrap: wrap; padding: 8px 14px; row-gap: 6px; }
+  .topbar .brand { font-size: 15px; }
+  .topbar .user-link { font-size: 12px; padding: 5px 9px; }
+  .section-head { flex-wrap: wrap; align-items: center; }
+  .section-head .btn { margin-left: 0 !important; }
+  .detail-grid { gap: 16px; }
+  .modal-head { padding: 14px 16px; }
+  .modal-body { padding: 16px 14px 20px; }
+  .ring-wrap { gap: 18px; justify-content: center; }
+  .config-grid { grid-template-columns: 1fr; }
+  .audit-table th:nth-child(4), .audit-table td:nth-child(4) { display: none; }
+}
+
+@media (max-width: 576px) {
+  /* 顶栏：链接换行铺满，防溢出 */
+  .topbar { padding: 8px 12px; }
+  .topbar .user-link { padding: 5px 8px; font-size: 11.5px; }
+  .topbar .user-chip { font-size: 12px; }
+
+  /* 登录页：品牌区收紧为顶部横幅 */
+  .login-brand { padding: 30px 22px 104px; }
+  .login-brand .lb-name-zh { font-size: 24px; }
+  .login-brand .lb-name-en { font-size: 11px; margin-top: 6px; }
+  .login-brand .lb-divider { margin: 14px 0; }
+  .login-brand .lb-slogan { font-size: 13px; margin-top: 0; }
+  .login-brand .lb-programs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 16px; }
+  .login-brand .lb-programs .pg-item { padding: 6px 0; }
+  .login-brand .lb-foot { left: 22px; right: 22px; bottom: 22px; font-size: 10.5px; }
+  .login-main { padding: 28px 14px 64px; }
+  .login-card { padding: 26px 20px 22px; }
+  .lc-title { font-size: 19px; }
+  .login-tabs .login-tab { font-size: 13.5px; padding: 10px 6px; }
+  .btn-login { height: 46px; font-size: 15px; }
+  .demo-note { font-size: 11.5px; padding: 10px 12px; }
+  .login-footer { bottom: 18px; }
+
+  /* 工作台：卡片单列、统计 2 列收紧 */
+  .page { padding: 16px 12px 10px; }
+  .stat-grid { gap: 10px; }
+  .stat-card { padding: 14px 14px; }
+  .stat-value { font-size: 20px; }
+  .toolbar { gap: 8px; margin-bottom: 14px; }
+  .search-box { flex: 1 1 100%; }
+  .filter-tabs { width: 100%; order: 3; }
+  .filter-tab { flex: 1; padding: 8px 6px; font-size: 12.5px; }
+  .tb-select { flex: 1 1 44%; min-width: 0; }
+  #btn-export { flex: 1 1 44%; }
+  .toolbar .result-count { width: auto; margin-left: auto; }
+  .student-card { padding: 14px; }
+  .sc-tags { gap: 5px; }
+
+  /* 弹窗：满宽贴边，头部操作换行 */
+  .modal-mask { padding: 10px 8px; align-items: flex-start; }
+  .modal { border-radius: 10px; }
+  .m-title span { font-size: 15px; }
+  .modal .m-sub { font-size: 11px; }
+  .modal-head .avatar.lg { width: 38px; height: 38px; font-size: 16px; }
+  .detail-body-actions, .modal-body > div[style*="justify-content:flex-end"] { flex-wrap: wrap !important; }
+  .modal-body > div[style*="justify-content:flex-end"] .btn { height: 30px !important; padding: 0 10px !important; font-size: 12px !important; }
+  .parent-chip { font-size: 11px; padding: 3px 8px; }
+  .detail-summary { gap: 8px; }
+  .detail-summary .item { width: 100%; }
+  .form-actions { flex-wrap: wrap; }
+  .form-actions .btn { flex: 1; }
+  .review-form { flex-direction: column; }
+  .review-form .review-input { width: 100% !important; }
+
+  /* 表格横向滚动 */
+  #audit-table-wrap, .detail-block { min-width: 0; }
+  .exam-table { display: block; overflow-x: auto; white-space: nowrap; }
+
+  /* 待评阅面板：满宽 */
+  .pending-panel { left: 10px; right: 10px; width: auto; top: 62px; }
+
+  /* 学员端 / 家长端 */
+  .profile-head { gap: 12px; }
+  .ring-box svg { width: 150px; height: 150px; }
+  .goal-card { padding: 12px 14px; }
+  .exam-cards { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .exam-card { padding: 12px 10px; flex-direction: column; text-align: center; gap: 6px; }
+  .bar-chart { gap: 6px; }
+  .tl-card { padding: 12px 12px; }
+  .tl-top { flex-wrap: wrap; gap: 6px; }
+}
+
+/* 手机/窄屏：品牌横幅不参与 flex 压缩（否则 padding 被挤掉、页脚压住内容） */
+@media (max-width: 860px) {
+  .login-brand { flex: none; }
+  .login-main { flex: none; }
+}

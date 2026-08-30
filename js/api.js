@@ -408,11 +408,48 @@
       return Promise.resolve();
     },
 
-    parentLogin: function () {
-      return Promise.reject(new Error('演示模式（无后端）暂不支持家长入口，请启动 backend/app.py'));
+    parentLogin: function (account, password) {
+      // 演示模式家长账号：P+学号数字（如 P2026001 → 学员 S2026001），密码同学生
+      var creds = window.DEMO_CREDENTIALS || { studentPassword: 'zx123456' };
+      var acc = String(account || '').trim().toUpperCase();
+      var studentNo = acc.charAt(0) === 'P' ? ('S' + acc.slice(1)) : acc;
+      var list = window.ZHXX_Store.load();
+      var student = null;
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].studentNo === studentNo) { student = list[i]; break; }
+      }
+      if (!student || password !== creds.studentPassword) {
+        return Promise.reject(new Error('账号或密码不正确'));
+      }
+      if (student.status === '停用') {
+        return Promise.reject(new Error('该学员账号已停用，请联系老师'));
+      }
+      return Promise.resolve({
+        role: 'parent', name: student.name, id: student.id, account: acc, studentNo: student.studentNo
+      });
     },
     parentSummary: function () {
-      return Promise.reject(new Error('演示模式（无后端）暂不支持家长入口'));
+      var Auth = window.ZHXX_Auth;
+      var S = window.ZHXX;
+      var auth = Auth.get();
+      var s = window.ZHXX_Store.getById(auth && auth.id);
+      if (!s) { return Promise.reject(new Error('未找到学员数据')); }
+      var comments = [];
+      var records = s.records || [];
+      for (var i = 0; i < records.length && comments.length < 3; i++) {
+        if (records[i].comment) {
+          comments.push({ date: records[i].date, subject: records[i].subject, comment: records[i].comment });
+        }
+      }
+      return Promise.resolve({
+        student: {
+          name: s.name, studentNo: s.studentNo, grade: s.grade,
+          className: s.className, stage: s.stage, goal: s.goal,
+          progress: s.progress, weeklyHours: s.weeklyHours, subjects: s.subjects
+        },
+        recentComments: comments,
+        latestExams: (s.exams || []).slice(0, 3)
+      });
     }
   };
 
@@ -472,8 +509,9 @@
     auditList: function (action) {
       return API.mode === 'server' ? API.auditList(action) : Demo.auditList(action);
     },
-    parentLogin: function (studentNo, authCode) {
-      return API.mode === 'server' ? API.parentLogin(studentNo, authCode) : Demo.parentLogin(studentNo, authCode);
+    parentLogin: function (account, password) {
+      // 服务端：家长账号在 users 表中，走统一登录；演示模式：本地校验
+      return API.mode === 'server' ? API.login(account, password) : Demo.parentLogin(account, password);
     },
     parentSummary: function () {
       return API.mode === 'server' ? API.parentSummary() : Demo.parentSummary();

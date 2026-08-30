@@ -410,17 +410,13 @@
       } else if (role === 'parent') {
         var pAcc = pAccount.value.trim();
         var pPwd = pPassword.value;
-        if (window.ZHXX_Data.mode === 'server') {
-          window.ZHXX_Data.login(pAcc, pPwd).then(function (profile) {
-            if (profile.role !== 'parent') { showError(['field-p-account', 'field-p-password']); return; }
-            Auth.set({ role: 'parent', id: profile.id, name: profile.name, account: profile.account });
-            window.location.href = 'parent.html';
-          }).catch(function (err) {
-            showError(['field-p-account', 'field-p-password'], err && err.message);
-          });
-        } else {
-          S.toast('演示模式（无后端）暂不支持家长入口，请启动 backend/app.py', 'warn');
-        }
+        window.ZHXX_Data.parentLogin(pAcc, pPwd).then(function (profile) {
+          if (profile.role !== 'parent') { showError(['field-p-account', 'field-p-password']); return; }
+          Auth.set({ role: 'parent', id: profile.id, name: profile.name, account: profile.account });
+          window.location.href = 'parent.html';
+        }).catch(function (err) {
+          showError(['field-p-account', 'field-p-password'], err && err.message);
+        });
       }
     });
 

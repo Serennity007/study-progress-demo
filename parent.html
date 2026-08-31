@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>家长查看 · 成都智慧象留学</title>
-  <link rel="stylesheet" href="css/style.css?v=20260830l">
+  <link rel="stylesheet" href="css/style.css?v=20260830n">
 </head>
 <body>
 
@@ -54,6 +54,7 @@
             <div class="ring-label">备考进度</div>
           </div>
         </div>
+        <div id="parent-ring-note" style="margin-top:10px;font-size:12px;color:#9AA6B2;text-align:center;"></div>
         <div class="ring-side">
           <div class="stage-row">
             <span style="color:#6E7B88;font-size:13px;flex:none;">当前阶段：</span>
@@ -69,10 +70,18 @@
           <div class="goal-card" style="display:flex;gap:20px;flex-wrap:wrap;">
             <span style="font-size:13px;color:#6E7B88;">本周学习 <b id="parent-week-hours" style="color:#12233A;font-family:Georgia,serif;font-size:16px;">0</b> 小时</span>
             <span style="font-size:13px;color:#6E7B88;">在读课程 <b id="parent-subject-count" style="color:#12233A;font-family:Georgia,serif;font-size:16px;">0</b> 门</span>
+            <span style="font-size:13px;color:#6E7B88;">任课教师 <b id="parent-teacher" style="color:#12233A;font-size:14px;">—</b></span>
           </div>
         </div>
       </div>
     </section>
+
+    <!-- 课程进度（学到哪里） -->
+    <div class="section-head" id="course-progress" style="display:none;">
+      <h2>课程进度 · 学到哪里了</h2>
+      <span class="sec-note">来自老师的实时登记</span>
+    </div>
+    <section class="card" id="course-progress-list" style="display:none;"></section>
 
     <!-- 最近教师评语 -->
     <div class="section-head">
@@ -127,9 +136,9 @@
     </div>
   </div>
 
-  <script src="js/mock-data.js?v=20260830l"></script>
-  <script src="js/api.js?v=20260830l"></script>
-  <script src="js/common.js?v=20260830l"></script>
-  <script src="js/parent.js?v=20260830l"></script>
+  <script src="js/mock-data.js?v=20260830n"></script>
+  <script src="js/api.js?v=20260830n"></script>
+  <script src="js/common.js?v=20260830n"></script>
+  <script src="js/parent.js?v=20260830n"></script>
 </body>
 </html>

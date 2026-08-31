@@ -33,6 +33,26 @@
     document.getElementById('parent-week-hours').textContent = S.totalWeeklyHours(st);
     document.getElementById('parent-subject-count').textContent = (st.subjects || []).length;
 
+    // 进度换算缺口 / 目标达成说明
+    var note = document.getElementById('parent-ring-note');
+    if (note) {
+      var pd = st.progressDetail;
+      if (!pd) {
+        note.textContent = '老师还未设定换算目标，进度按学习记录计数';
+      } else if (pd.achieved) {
+        note.innerHTML = '换算：时长 ' + pd.hoursDone + '/' + pd.targetHours + 'h · 测评 ' + pd.examsDone + '/' + pd.targetExams + ' 次 · <b style="color:#8A6D2F;">阶段目标已达成 100%</b>';
+      } else {
+        var gaps = [];
+        if (pd.hoursGap > 0) { gaps.push('再学 ' + pd.hoursGap + ' 小时'); }
+        if (pd.examsGap > 0) { gaps.push('再考 ' + pd.examsGap + ' 次'); }
+        note.innerHTML = '换算：时长 ' + pd.hoursDone + '/' + pd.targetHours + 'h（' + pd.hoursRatio + '%）· 测评 ' + pd.examsDone + '/' + pd.targetExams + ' 次（' + pd.examsRatio + '%）' +
+          (gaps.length ? ' · 距 100% 还' + gaps.join('、') : '');
+      }
+    }
+    // 任课教师
+    var tName = document.getElementById('parent-teacher');
+    if (tName) { tName.textContent = st.teacherName || '—'; }
+
     var value = document.getElementById('ring-value');
     value.innerHTML = Math.round(st.progress) + '<span class="unit">%</span>';
     var circle = document.getElementById('ring-fill');
@@ -96,6 +116,22 @@
     }).join('');
   }
 
+  function renderCourseProgress(st) {
+    var head = document.getElementById('course-progress');
+    var box = document.getElementById('course-progress-list');
+    if (!head || !box) { return; }
+    var marks = st.courseProgress || [];
+    if (!marks.length) { return; }
+    head.style.display = 'block';
+    box.style.display = 'block';
+    box.innerHTML = marks.map(function (m) {
+      return '<div class="tl-item"><div class="tl-card">' +
+        '<div class="tl-top"><span>' + S.esc(m.subject) + '</span></div>' +
+        '<div class="tl-content">' + S.esc(m.mark || '老师还没有登记进度') + '</div>' +
+        '</div></div>';
+    }).join('');
+  }
+
   function start() {
     var auth = Auth.require('parent');
     if (!auth) { return; }
@@ -104,6 +140,7 @@
       document.getElementById('parent-page').style.display = 'block';
       document.getElementById('page-footer').style.display = 'block';
       renderProfile(data.student);
+      renderCourseProgress(data.student);
       renderComments(data.recentComments);
       renderExams(data.latestExams);
     }).catch(function (err) {

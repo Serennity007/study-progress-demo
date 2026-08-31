@@ -180,13 +180,56 @@
       document.getElementById('page-footer').style.display = 'block';
       renderProfile(s);
       renderRing(Number(s.progress) || 0);
+      renderRingNote(s);
       renderStageTrack(s.stage);
+      renderCourseProgress(s);
       renderTimeline(s);
       renderExams(s);
       renderWeeklyBars(s);
     }).catch(function () {
       window.ZHXX.toast('数据加载失败，请刷新页面重试', 'warn');
     });
+  }
+
+  /** 进度换算说明（含距 100% 缺口 / 目标达成） */
+  function renderRingNote(s) {
+    var note = document.getElementById('ring-note');
+    if (!note) { return; }
+    var pd = s.progressDetail;
+    if (!pd) {
+      note.textContent = '口径：学习记录 +1 · 阶段测评 +2，上限 99%';
+      return;
+    }
+    if (pd.achieved) {
+      note.innerHTML = '换算：学习时长 ' + pd.hoursDone + '/' + pd.targetHours + 'h（' + pd.hoursRatio + '%）· 测评 ' + pd.examsDone + '/' + pd.targetExams + ' 次（' + pd.examsRatio + '%）· <b style="color:#8A6D2F;">目标已达成 100%</b>';
+      return;
+    }
+    var gaps = [];
+    if (pd.hoursGap > 0) { gaps.push('再学 ' + pd.hoursGap + ' 小时'); }
+    if (pd.examsGap > 0) { gaps.push('再考 ' + pd.examsGap + ' 次'); }
+    note.innerHTML = '换算：学习时长 ' + pd.hoursDone + '/' + pd.targetHours + 'h（' + pd.hoursRatio + '%）· 测评 ' + pd.examsDone + '/' + pd.targetExams + ' 次（' + pd.examsRatio + '%）' +
+      (gaps.length ? ' · 距 100% 还' + gaps.join('、') : '');
+  }
+
+  /** 课程进度「学到哪里」（逐科目展示） */
+  function renderCourseProgress(s) {
+    var box = document.getElementById('course-progress-list');
+    if (!box) { return; }
+    var marks = s.courseProgress || [];
+    document.getElementById('course-progress').style.display = 'block';
+    document.getElementById('course-progress-list').style.display = 'block';
+    var rows = (s.subjects || []).map(function (sub) {
+      var hit = null;
+      for (var i = 0; i < marks.length; i++) {
+        if (marks[i].subject === sub) { hit = marks[i]; break; }
+      }
+      var mark = hit && hit.mark ? S.esc(hit.mark) : '老师还没有登记进度';
+      return '<div class="tl-item"><div class="tl-card">' +
+        '<div class="tl-top"><span>' + S.esc(sub) + '</span></div>' +
+        '<div class="tl-content">' + mark + '</div>' +
+        '</div></div>';
+    }).join('');
+    box.innerHTML = rows || '<div class="empty-tip" style="padding:24px 0;">暂无课程</div>';
   }
 
   window.ZHXX_READY.then(start);

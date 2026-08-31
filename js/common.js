@@ -29,10 +29,18 @@
       try { sessionStorage.setItem(AUTH_KEY, JSON.stringify(auth)); } catch (e) { /* 忽略 */ }
       return auth;
     },
-    /** 页面守卫：校验角色，未登录或角色不符则跳回登录页 */
+    /** 页面守卫：校验角色（支持传数组表示多角色任一即可），未登录或角色不符则跳回登录页 */
     require: function (role) {
       var auth = Auth.get();
-      if (!auth || auth.role !== role) {
+      var ok = false;
+      if (auth) {
+        if (Object.prototype.toString.call(role) === '[object Array]') {
+          ok = role.indexOf(auth.role) !== -1;
+        } else {
+          ok = auth.role === role;
+        }
+      }
+      if (!ok) {
         window.location.replace('index.html');
         return null;
       }
@@ -371,14 +379,15 @@
         var pwd = tPassword.value;
         if (window.ZHXX_Data.mode === 'server') {
           window.ZHXX_Data.login(acc, pwd).then(function (profile) {
-            if (profile.role !== 'teacher') { showError(['field-t-account', 'field-t-password']); return; }
-            Auth.set({ role: 'teacher', name: profile.name, title: profile.title, account: profile.account });
+            // 教学总监（admin）与教师（teacher）共用老师入口
+            if (profile.role !== 'teacher' && profile.role !== 'admin') { showError(['field-t-account', 'field-t-password']); return; }
+            Auth.set({ role: profile.role, name: profile.name, title: profile.title, account: profile.account });
             window.location.href = 'admin.html';
           }).catch(function (err) {
             showError(['field-t-account', 'field-t-password'], err && err.message);
           });
         } else if (acc === creds.teacher.account && pwd === creds.teacher.password) {
-          Auth.set({ role: 'teacher', name: creds.teacher.name, title: creds.teacher.title, account: acc });
+          Auth.set({ role: creds.teacher.role || 'teacher', name: creds.teacher.name, title: creds.teacher.title, account: acc });
           window.location.href = 'admin.html';
         } else {
           showError(['field-t-account', 'field-t-password']);

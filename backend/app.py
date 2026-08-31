@@ -26,6 +26,16 @@ Flask + SQLite 零配置实现，接口契约对齐《商业企划书》第六�
   POST /api/parent/login           家长凭学号+授权码登录
   GET  /api/parent/summary         家长查看学习摘要（仅限授权学员）
 
+六期接口（多教师归属 + 课程进度 + 缺口换算）：
+  GET  /api/teachers                教师账号列表（admin）
+  POST /api/teachers                新建教师账号（admin）
+  PUT  /api/teachers/{account}/status    停用/启用教师（admin）
+  PUT  /api/teachers/{account}/password  重置教师密码（admin）
+  PUT  /api/students/{id}/course-progress  登记课程进度「学到哪里」（教师，按科目 upsert）
+
+角色说明：admin（教学总监，可见全部学员、管理教师账号、改派学员）/
+teacher（仅可见与操作 teacher_account 归属于自己的学员）。
+
 同时以 no-cache 头托管上层目录的静态页面（登录页/老师端/学员端/家长端）。
 关键操作（登录、档案变更、评阅、成绩、导出、密码、配置）均写入审计日志。
 
@@ -94,7 +104,7 @@ def ensure_schema():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             account TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL,             -- teacher / student
+            role TEXT NOT NULL,             -- admin / teacher / student / parent
             name TEXT NOT NULL,
             title TEXT DEFAULT '',
             student_id TEXT
@@ -111,7 +121,9 @@ def ensure_schema():
             goal TEXT DEFAULT '',
             progress REAL DEFAULT 0,
             trend TEXT NOT NULL DEFAULT '[]',
-            weekly_hours TEXT NOT NULL DEFAULT '[0,0,0,0,0,0,0]'
+            weekly_hours TEXT NOT NULL DEFAULT '[0,0,0,0,0,0,0]',
+            target_hours REAL DEFAULT 0,
+            target_exams REAL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,6 +166,16 @@ def ensure_schema():
         c.execute("ALTER TABLE students ADD COLUMN status TEXT NOT NULL DEFAULT '在读'")
     if "auth_code" not in cols:
         c.execute("ALTER TABLE students ADD COLUMN auth_code TEXT NOT NULL DEFAULT ''")
+    if "target_hours" not in cols:
+        c.execute("ALTER TABLE students ADD COLUMN target_hours REAL NOT NULL DEFAULT 0")
+    if "target_exams" not in cols:
+        c.execute("ALTER TABLE students ADD COLUMN target_exams REAL NOT NULL DEFAULT 0")
+    if "teacher_account" not in cols:
+        c.execute("ALTER TABLE students ADD COLUMN teacher_account TEXT NOT NULL DEFAULT 'teacher'")
+    # 六期迁移：users 增加在职状态列（教师/管理员可停用）
+    ucols = {r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()}
+    if "status" not in ucols:
+        c.execute("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT '在职'")
     # 新业务表
     c.executescript(
         """
@@ -173,6 +195,14 @@ def ensure_schema():
             target TEXT DEFAULT '',
             detail TEXT DEFAULT ''
         );
+        CREATE TABLE IF NOT EXISTS course_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL REFERENCES students(id),
+            subject TEXT NOT NULL,
+            mark TEXT DEFAULT '',
+            updated_at TEXT NOT NULL,
+            UNIQUE(student_id, subject)
+        );
         """
     )
     conn.commit()
@@ -191,7 +221,7 @@ def seed_if_empty():
     teacher = seed["credentials"]["teacher"]
     c.execute(
         "INSERT INTO users(account,password_hash,role,name,title) VALUES(?,?,?,?,?)",
-        (teacher["account"], hash_pw(teacher["password"]), "teacher", teacher["name"], teacher["title"]),
+        (teacher["account"], hash_pw(teacher["password"]), "admin", teacher["name"], teacher["title"]),
     )
     now = datetime.now().isoformat(timespec="seconds")
     for s in seed["students"]:
@@ -200,14 +230,16 @@ def seed_if_empty():
             (s["studentNo"], pw, "student", s["name"], s["id"]),
         )
         c.execute(
-            "INSERT INTO students(id,student_no,name,grade,class_name,subjects,enroll_date,stage,goal,progress,trend,weekly_hours,status,auth_code)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO students(id,student_no,name,grade,class_name,subjects,enroll_date,stage,goal,progress,trend,weekly_hours,status,auth_code,target_hours,target_exams,teacher_account)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 s["id"], s["studentNo"], s["name"], s["grade"], s["className"],
                 json.dumps(s["subjects"], ensure_ascii=False),
                 s["enrollDate"], s["stage"], s["goal"],
                 s["progress"], json.dumps(s["trend"]), json.dumps(s["weeklyHours"]),
                 "在读", "P" + s["studentNo"][1:],
+                float(s.get("targetHours") or 0), float(s.get("targetExams") or 0),
+                s.get("teacherAccount", teacher["account"]),
             ),
         )
         for r in reversed(s["records"]):  # 倒序插入，保证最新记录 id 最大
@@ -268,7 +300,65 @@ def log_action(user, action, target="", detail=""):
 
 # ---------------- 序列化 ----------------
 
+def progress_detail(row):
+    """目标换算制：进度 = 80%×时长完成率 + 20%×测评完成率。
+    时长与测评双达标时 progress=100（目标达成）；未双达标封顶 99。
+    输出缺口 hoursGap/examsGap（距 100% 还差多少）。
+    老师未设目标（target_hours 与 target_exams 均为 0）时返回 None，
+    学员进度沿用原计数口径（progress 字段，记录 +1 / 测评 +2）。"""
+    try:
+        target_hours = round(float(row["target_hours"] or 0), 1)
+        target_exams = round(float(row["target_exams"] or 0), 1)
+    except (TypeError, ValueError, KeyError, IndexError):
+        return None
+    if target_hours <= 0 and target_exams <= 0:
+        return None
+    cur = db().execute(
+        "SELECT SUM(duration) AS s, COUNT(*) AS n FROM records WHERE student_id=? AND status='已完成'",
+        (row["id"],),
+    ).fetchone()
+    hours_done = round(cur["s"] or 0, 1)
+    exams_done = db().execute(
+        "SELECT COUNT(*) AS n FROM exams WHERE student_id=?", (row["id"],)
+    ).fetchone()["n"]
+    hours_ratio = min(1.0, hours_done / target_hours) if target_hours > 0 else 1.0
+    exams_ratio = min(1.0, exams_done / target_exams) if target_exams > 0 else 1.0
+    if target_hours > 0 and target_exams > 0:
+        ratio = 0.8 * hours_ratio + 0.2 * exams_ratio
+    else:
+        ratio = hours_ratio if target_hours > 0 else exams_ratio
+    hours_ok = target_hours <= 0 or hours_ratio >= 1.0
+    exams_ok = target_exams <= 0 or exams_ratio >= 1.0
+    achieved = hours_ok and exams_ok
+    progress = 100.0 if achieved else min(99.0, round(ratio * 100, 1))
+    return {
+        "targetHours": target_hours, "hoursDone": hours_done,
+        "targetExams": target_exams, "examsDone": exams_done,
+        "hoursRatio": round(hours_ratio * 100, 1),
+        "examsRatio": round(exams_ratio * 100, 1),
+        "hoursGap": round(max(0.0, target_hours - hours_done), 1),
+        "examsGap": int(max(0.0, target_exams - exams_done)),
+        "achieved": achieved,
+        "progress": progress,
+    }
+
+
+def sync_progress(row):
+    """把换算结果写回 progress 与趋势末位（设了目标时调用）。"""
+    detail = progress_detail(row)
+    if not detail:
+        return
+    trend = json.loads(row["trend"]) or [0]
+    trend[-1] = detail["progress"]
+    db().execute(
+        "UPDATE students SET progress=?, trend=? WHERE id=?",
+        (detail["progress"], json.dumps(trend), row["id"]),
+    )
+
+
 def student_row_to_dict(row, with_detail=False):
+    t_acc = row["teacher_account"] if "teacher_account" in row.keys() else "teacher"
+    t_info = teacher_name_map().get(t_acc, {"name": t_acc, "title": ""})
     out = {
         "id": row["id"],
         "name": row["name"],
@@ -285,7 +375,22 @@ def student_row_to_dict(row, with_detail=False):
         "status": row["status"] if "status" in row.keys() else "在读",
         "authCode": row["auth_code"] if "auth_code" in row.keys() else "",
         "parentAccount": "P" + row["student_no"][1:],
+        "targetHours": round(float(row["target_hours"] or 0), 1) if "target_hours" in row.keys() else 0,
+        "targetExams": round(float(row["target_exams"] or 0), 1) if "target_exams" in row.keys() else 0,
+        "teacherAccount": t_acc,
+        "teacherName": t_info["name"],
+        "courseProgress": [
+            {"subject": r["subject"], "mark": r["mark"], "updatedAt": r["updated_at"]}
+            for r in db().execute(
+                "SELECT subject, mark, updated_at FROM course_progress WHERE student_id=? ORDER BY subject",
+                (row["id"],),
+            ).fetchall()
+        ],
     }
+    pd = progress_detail(row)
+    if pd:
+        out["progress"] = pd["progress"]
+        out["progressDetail"] = pd
     if with_detail:
         cur = db().execute(
             "SELECT * FROM records WHERE student_id=? ORDER BY date DESC, id DESC", (row["id"],)
@@ -311,9 +416,41 @@ def require_role(role):
     user = current_user()
     if not user:
         return None, (jsonify({"error": "未登录或会话已过期"}), 401)
-    if role == "teacher" and user["role"] != "teacher":
+    if role == "teacher" and user["role"] not in ("teacher", "admin"):
         return None, (jsonify({"error": "需要教师权限"}), 403)
+    if role == "admin" and user["role"] != "admin":
+        return None, (jsonify({"error": "需要教学总监权限"}), 403)
     return user, None
+
+
+def staff_owns(user, student_row):
+    """学员归属校验：admin 全量可见，teacher 仅本人名下学员。"""
+    if user["role"] == "admin":
+        return True
+    if user["role"] == "teacher":
+        acc = student_row["teacher_account"] if "teacher_account" in student_row.keys() else "teacher"
+        return acc == user["account"]
+    return False
+
+
+def deny_owner():
+    return jsonify({"error": "该学员不归属您名下，无权操作"}), 403
+
+
+def teacher_name_map():
+    rows = db().execute(
+        "SELECT account, name, title FROM users WHERE role IN ('teacher','admin')"
+    ).fetchall()
+    return {r["account"]: {"name": r["name"], "title": r["title"] or ""} for r in rows}
+
+
+def teacher_status(account):
+    row = db().execute(
+        "SELECT status FROM users WHERE account=? AND role IN ('teacher','admin')", (account,)
+    ).fetchone()
+    if not row:
+        return "missing"
+    return row["status"] if "status" in row.keys() else "在职"
 
 
 def custom_subjects():
@@ -330,10 +467,15 @@ def subjects_payload():
 
 
 def bump_progress(student_id, step):
-    """推进总进度与趋势末位（与前端演示规则一致：加记录 +1，录成绩 +2，上限 99）"""
+    """推进总进度与趋势末位。设了目标（换算制）时进度按目标实时换算；
+    未设目标沿用计数口径：加记录 +1，录成绩 +2，上限 99。"""
     conn = db()
-    row = conn.execute("SELECT progress, trend FROM students WHERE id=?", (student_id,)).fetchone()
-    progress = min(99, round((row["progress"] + step) * 10) / 10)
+    row = conn.execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
+    pd = progress_detail(row)
+    if pd:
+        progress = pd["progress"]
+    else:
+        progress = min(99, round((row["progress"] + step) * 10) / 10)
     trend = json.loads(row["trend"]) or [0]
     trend[-1] = progress
     conn.execute(
@@ -400,6 +542,10 @@ def login():
         st = db().execute("SELECT status, name FROM students WHERE id=?", (row["student_id"],)).fetchone()
         if st and st["status"] == "停用":
             return jsonify({"error": "该学员账号已停用，请联系老师"}), 403
+    if row["role"] in ("teacher", "admin"):
+        ustatus = row["status"] if "status" in row.keys() else "在职"
+        if ustatus == "停用":
+            return jsonify({"error": "该教师账号已停用，请联系教学总监"}), 403
     token = secrets.token_hex(16)
     conn = db()
     conn.execute(
@@ -433,8 +579,14 @@ def bootstrap():
     if err:
         return err
     conn = db()
-    if user["role"] == "teacher":
+    if user["role"] == "admin":
         rows = conn.execute("SELECT * FROM students ORDER BY status DESC, student_no").fetchall()
+        students = [student_row_to_dict(r, with_detail=True) for r in rows]
+    elif user["role"] == "teacher":
+        rows = conn.execute(
+            "SELECT * FROM students WHERE teacher_account=? ORDER BY status DESC, student_no",
+            (user["account"],),
+        ).fetchall()
         students = [student_row_to_dict(r, with_detail=True) for r in rows]
     elif user["role"] == "parent":
         rows = conn.execute("SELECT * FROM students WHERE id=?", (user["student_id"],)).fetchall()
@@ -474,7 +626,13 @@ def list_students():
     user, err = require_role("teacher")
     if err:
         return err
-    rows = db().execute("SELECT * FROM students ORDER BY status DESC, student_no").fetchall()
+    if user["role"] == "admin":
+        rows = db().execute("SELECT * FROM students ORDER BY status DESC, student_no").fetchall()
+    else:
+        rows = db().execute(
+            "SELECT * FROM students WHERE teacher_account=? ORDER BY status DESC, student_no",
+            (user["account"],),
+        ).fetchall()
     return jsonify({"students": [student_row_to_dict(r) for r in rows]})
 
 
@@ -490,6 +648,12 @@ def create_student():
     subjects = body.get("subjects") or []
     if not subjects:
         return jsonify({"error": "请至少勾选一门备考课程"}), 400
+    # 归属教师：teacher 只能建在自己名下，admin 可指定（默认本人）
+    owner = user["account"]
+    if user["role"] == "admin" and body.get("teacherAccount"):
+        owner = str(body["teacherAccount"]).strip()
+        if teacher_status(owner) != "在职":
+            return jsonify({"error": "归属教师不存在或已停用"}), 400
     conn = db()
     nums = [int(r["student_no"][1:]) for r in conn.execute("SELECT student_no FROM students").fetchall()
             if r["student_no"][1:].isdigit()]
@@ -507,8 +671,8 @@ def create_student():
         ("P" + next_no[1:], default_pw, "parent", name + "家长", student_id),
     )
     c.execute(
-        "INSERT INTO students(id,student_no,name,grade,class_name,subjects,enroll_date,stage,goal,progress,trend,weekly_hours,status,auth_code)"
-        " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO students(id,student_no,name,grade,class_name,subjects,enroll_date,stage,goal,progress,trend,weekly_hours,status,auth_code,target_hours,target_exams,teacher_account)"
+        " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             student_id, next_no, name,
             str(body.get("grade", "高一")),
@@ -519,9 +683,12 @@ def create_student():
             str(body.get("goal", "")).strip(),
             0, json.dumps([0, 0, 0, 0, 0, 0]), json.dumps([0] * 7),
             "在读", "P" + next_no[1:],
+            max(0.0, float(body.get("targetHours") or 0)),
+            max(0.0, float(body.get("targetExams") or 0)),
+            owner,
         ),
     )
-    log_action(user, "新建学员", next_no, f"{name}（初始密码 zx123456）")
+    log_action(user, "新建学员", next_no, f"{name}（归属 {owner}，初始密码 zx123456）")
     conn.commit()
     fresh = conn.execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
     return jsonify({"student": student_row_to_dict(fresh, with_detail=True)})
@@ -532,7 +699,14 @@ def get_student(student_id):
     user, err = require_role("any")
     if err:
         return err
-    if user["role"] != "teacher" and user["student_id"] != student_id:
+    if user["role"] in ("teacher", "admin"):
+        row = db().execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "学员不存在"}), 404
+        if not staff_owns(user, row):
+            return deny_owner()
+        return jsonify({"student": student_row_to_dict(row, with_detail=True)})
+    if user["student_id"] != student_id:
         return jsonify({"error": "学员仅能读取本人数据（RBAC）"}), 403
     row = db().execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
     if not row:
@@ -549,10 +723,26 @@ def update_student(student_id):
     row = db().execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
     if not row:
         return jsonify({"error": "学员不存在"}), 404
+    if not staff_owns(user, row):
+        return deny_owner()
     name = str(body.get("name", "")).strip() or row["name"]
     subjects = body.get("subjects") or json.loads(row["subjects"])
+    try:
+        target_hours = max(0.0, float(body.get("targetHours", row["target_hours"])))
+        target_exams = max(0.0, float(body.get("targetExams", row["target_exams"])))
+    except (TypeError, ValueError):
+        return jsonify({"error": "目标值须为非负数字"}), 400
+    # 改派归属：仅 admin 可操作
+    owner = row["teacher_account"] if "teacher_account" in row.keys() else "teacher"
+    if user["role"] == "admin" and body.get("teacherAccount"):
+        new_owner = str(body["teacherAccount"]).strip()
+        if new_owner != owner:
+            if teacher_status(new_owner) != "在职":
+                return jsonify({"error": "归属教师不存在或已停用"}), 400
+            owner = new_owner
+            log_action(user, "改派学员", student_id, f"{row['name']}：{owner} 名下")
     db().execute(
-        "UPDATE students SET name=?, grade=?, class_name=?, stage=?, subjects=?, enroll_date=?, goal=? WHERE id=?",
+        "UPDATE students SET name=?, grade=?, class_name=?, stage=?, subjects=?, enroll_date=?, goal=?, target_hours=?, target_exams=?, teacher_account=? WHERE id=?",
         (
             name,
             str(body.get("grade", row["grade"])),
@@ -561,11 +751,16 @@ def update_student(student_id):
             json.dumps(subjects, ensure_ascii=False),
             str(body.get("enrollDate", row["enroll_date"])),
             str(body.get("goal", row["goal"])),
+            target_hours, target_exams,
+            owner,
             student_id,
         ),
     )
     db().execute("UPDATE users SET name=? WHERE student_id=?", (name, student_id))
     log_action(user, "编辑学员档案", student_id, name)
+    db().commit()
+    fresh = db().execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
+    sync_progress(fresh)
     db().commit()
     fresh = db().execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
     return jsonify({"student": student_row_to_dict(fresh, with_detail=True)})
@@ -581,9 +776,11 @@ def set_student_status(student_id):
     if status not in ("在读", "停用"):
         return jsonify({"error": "状态取值不合法"}), 400
     reason = str(body.get("reason", "")).strip()
-    row = db().execute("SELECT name FROM students WHERE id=?", (student_id,)).fetchone()
+    row = db().execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
     if not row:
         return jsonify({"error": "学员不存在"}), 404
+    if not staff_owns(user, row):
+        return deny_owner()
     db().execute("UPDATE students SET status=? WHERE id=?", (status, student_id))
     if status == "停用":
         # 停用即踢出该学员及其家长的全部会话
@@ -614,6 +811,11 @@ def add_record(student_id):
     status = body.get("status") if body.get("status") in ("已完成", "待评阅") else "已完成"
     comment = str(body.get("comment", "")).strip()
 
+    srow = db().execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
+    if not srow:
+        return jsonify({"error": "学员不存在"}), 404
+    if not staff_owns(user, srow):
+        return deny_owner()
     conn = db()
     conn.execute(
         "INSERT INTO records(student_id,date,subject,content,duration,status,comment,created_at)"
@@ -651,11 +853,13 @@ def review_record(record_id):
     if not comment:
         return jsonify({"error": "请填写教师评语"}), 400
     row = db().execute(
-        "SELECT r.student_id AS student_id, s.name AS name FROM records r JOIN students s ON s.id=r.student_id WHERE r.id=?",
+        "SELECT r.student_id AS student_id, s.name AS name, s.teacher_account AS teacher_account FROM records r JOIN students s ON s.id=r.student_id WHERE r.id=?",
         (record_id,),
     ).fetchone()
     if not row:
         return jsonify({"error": "记录不存在"}), 404
+    if not staff_owns(user, row):
+        return deny_owner()
     db().execute("UPDATE records SET comment=?, status='已完成' WHERE id=?", (comment, record_id))
     log_action(user, "评阅记录", row["student_id"], comment[:30])
     db().commit()
@@ -677,6 +881,11 @@ def add_score(student_id):
     if not date_s or score < 0:
         return jsonify({"error": "请完整填写分数与测评日期"}), 400
     subject = str(body.get("subject", "")).strip() or "未分类"
+    srow = db().execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
+    if not srow:
+        return jsonify({"error": "学员不存在"}), 404
+    if not staff_owns(user, srow):
+        return deny_owner()
     conn = db()
     conn.execute(
         "INSERT INTO exams(student_id,stage,subject,score,date) VALUES(?,?,?,?,?)",
@@ -695,9 +904,20 @@ def stats_overview():
     user, err = require_role("teacher")
     if err:
         return err
-    rows = db().execute("SELECT progress, weekly_hours FROM students WHERE status='在读'").fetchall()
-    students = [student_row_to_dict(r, with_detail=True) for r in
-                db().execute("SELECT * FROM students WHERE status='在读'").fetchall()]
+    if user["role"] == "admin":
+        rows = db().execute("SELECT progress, weekly_hours FROM students WHERE status='在读'").fetchall()
+        students = [student_row_to_dict(r, with_detail=True) for r in
+                    db().execute("SELECT * FROM students WHERE status='在读'").fetchall()]
+    else:
+        rows = db().execute(
+            "SELECT progress, weekly_hours FROM students WHERE status='在读' AND teacher_account=?",
+            (user["account"],),
+        ).fetchall()
+        students = [student_row_to_dict(r, with_detail=True) for r in
+                    db().execute(
+                        "SELECT * FROM students WHERE status='在读' AND teacher_account=?",
+                        (user["account"],),
+                    ).fetchall()]
     hours = sum(sum(json.loads(r["weekly_hours"] or "[]")) for r in rows)
     progress = sum(r["progress"] for r in rows) / len(rows) if rows else 0
     pending = sum(1 for s in students for rec in s.get("records", []) if rec["status"] == "待评阅")
@@ -851,6 +1071,8 @@ def export_students():
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
     rows = db().execute("SELECT * FROM students ORDER BY status DESC, student_no").fetchall()
+    if user["role"] != "admin":
+        rows = [r for r in rows if (r["teacher_account"] if "teacher_account" in r.keys() else "teacher") == user["account"]]
     exported = 0
     for r in rows:
         s = student_row_to_dict(r, with_detail=True)
@@ -888,6 +1110,133 @@ def export_students():
         download_name=fname,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+# ---------------- 教师账号管理（六期：admin 专属） ----------------
+
+@app.get("/api/teachers")
+def list_teachers():
+    user, err = require_role("admin")
+    if err:
+        return err
+    rows = db().execute(
+        "SELECT account, name, title, status FROM users WHERE role IN ('teacher','admin') ORDER BY role DESC, account"
+    ).fetchall()
+    counts = {r["teacher_account"]: r["n"] for r in db().execute(
+        "SELECT teacher_account, COUNT(*) AS n FROM students GROUP BY teacher_account"
+    ).fetchall()}
+    teachers = [{
+        "account": r["account"], "name": r["name"], "title": r["title"] or "",
+        "status": r["status"] if "status" in r.keys() else "在职",
+        "studentCount": counts.get(r["account"], 0),
+        "isAdmin": False,
+    } for r in rows]
+    for t in teachers:
+        if t["account"] == user["account"]:
+            t["isAdmin"] = True
+    return jsonify({"teachers": teachers})
+
+
+@app.post("/api/teachers")
+def create_teacher():
+    user, err = require_role("admin")
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    account = str(body.get("account", "")).strip()
+    name = str(body.get("name", "")).strip()
+    title = str(body.get("title", "")).strip()
+    if not account or not name:
+        return jsonify({"error": "登录账号与姓名不能为空"}), 400
+    if not account.replace("_", "").isalnum():
+        return jsonify({"error": "登录账号仅支持字母、数字、下划线"}), 400
+    if db().execute("SELECT 1 FROM users WHERE account=?", (account,)).fetchone():
+        return jsonify({"error": "该登录账号已存在"}), 409
+    password = str(body.get("password", "")).strip() or "zx123456"
+    if len(password) < 6:
+        return jsonify({"error": "密码至少 6 位"}), 400
+    db().execute(
+        "INSERT INTO users(account,password_hash,role,name,title,status) VALUES(?,?,?,?,?,'在职')",
+        (account, hash_pw(password), "teacher", name, title),
+    )
+    log_action(user, "新建教师", account, f"{name}（初始密码 {password}）")
+    db().commit()
+    return jsonify({"ok": True})
+
+
+@app.put("/api/teachers/<account>/status")
+def set_teacher_status(account):
+    user, err = require_role("admin")
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    status = body.get("status")
+    if status not in ("在职", "停用"):
+        return jsonify({"error": "状态取值不合法"}), 400
+    if account == user["account"]:
+        return jsonify({"error": "不能停用自己的账号"}), 400
+    row = db().execute(
+        "SELECT name FROM users WHERE account=? AND role IN ('teacher','admin')", (account,)
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "教师不存在"}), 404
+    db().execute("UPDATE users SET status=? WHERE account=?", (status, account))
+    if status == "停用":
+        db().execute("DELETE FROM sessions WHERE account=?", (account,))
+    log_action(user, "停用教师" if status == "停用" else "启用教师", account, row["name"])
+    db().commit()
+    return jsonify({"ok": True})
+
+
+@app.put("/api/teachers/<account>/password")
+def reset_teacher_password(account):
+    user, err = require_role("admin")
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    password = str(body.get("password", "")).strip() or "zx123456"
+    if len(password) < 6:
+        return jsonify({"error": "密码至少 6 位"}), 400
+    row = db().execute(
+        "SELECT name FROM users WHERE account=? AND role IN ('teacher','admin')", (account,)
+    ).fetchone()
+    if not row:
+        return jsonify({"error": "教师不存在"}), 404
+    db().execute("UPDATE users SET password_hash=? WHERE account=?", (hash_pw(password), account))
+    db().execute("DELETE FROM sessions WHERE account=?", (account,))
+    log_action(user, "重置教师密码", account, row["name"])
+    db().commit()
+    return jsonify({"ok": True})
+
+
+# ---------------- 课程进度「学到哪里」（六期） ----------------
+
+@app.put("/api/students/<student_id>/course-progress")
+def update_course_progress(student_id):
+    user, err = require_role("teacher")
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    subject = str(body.get("subject", "")).strip()
+    mark = str(body.get("mark", "")).strip()
+    if not subject:
+        return jsonify({"error": "请选择科目"}), 400
+    if len(mark) > 120:
+        return jsonify({"error": "进度说明请控制在 120 字以内"}), 400
+    row = db().execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "学员不存在"}), 404
+    if not staff_owns(user, row):
+        return deny_owner()
+    db().execute(
+        "INSERT INTO course_progress(student_id, subject, mark, updated_at) VALUES(?,?,?,?)"
+        " ON CONFLICT(student_id, subject) DO UPDATE SET mark=excluded.mark, updated_at=excluded.updated_at",
+        (student_id, subject, mark, datetime.now().isoformat(timespec="seconds")),
+    )
+    log_action(user, "登记课程进度", student_id, f"{subject}：{mark[:30]}")
+    db().commit()
+    fresh = db().execute("SELECT * FROM students WHERE id=?", (student_id,)).fetchone()
+    return jsonify({"student": student_row_to_dict(fresh, with_detail=True)})
 
 
 # ---------------- 家长查看通道（UC-S06） ----------------
@@ -938,6 +1287,8 @@ def parent_summary():
             "name": s["name"], "studentNo": s["studentNo"], "grade": s["grade"],
             "className": s["className"], "stage": s["stage"], "goal": s["goal"],
             "progress": s["progress"], "weeklyHours": s["weeklyHours"], "subjects": s["subjects"],
+            "progressDetail": s.get("progressDetail"), "courseProgress": s.get("courseProgress", []),
+            "teacherName": s.get("teacherName", ""),
         },
         "recentComments": comments,
         "latestExams": s["exams"][:3],

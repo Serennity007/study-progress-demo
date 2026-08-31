@@ -325,16 +325,32 @@
     document.getElementById('modal-avatar').textContent = S.firstChar(s.name);
     document.getElementById('modal-name').textContent = s.name + ' · ' + s.stage + (inactive ? '（已停用）' : '');
     document.getElementById('modal-sub').textContent =
-      '学号 ' + s.studentNo + '｜' + s.grade + s.className + '｜入学日期 ' + s.enrollDate;
+      '学号 ' + s.studentNo + '｜' + s.grade + s.className + '｜入学日期 ' + s.enrollDate +
+      '｜归属教师 ' + (s.teacherName || s.teacherAccount || '—');
 
     document.getElementById('modal-parent-account').textContent = s.parentAccount || ('P' + s.studentNo.slice(1));
     var toggleBtn = document.getElementById('btn-toggle-status');
     toggleBtn.textContent = inactive ? '启用学员' : '停用学员';
     document.getElementById('status-form-wrap').style.display = 'none';
 
+    var pd = s.progressDetail;
+    var detailHtml = '';
+    if (pd) {
+      var gapBits = [];
+      if (pd.hoursGap > 0) { gapBits.push('还差 ' + pd.hoursGap + ' 小时'); }
+      if (pd.examsGap > 0) { gapBits.push('还差 ' + pd.examsGap + ' 次测评'); }
+      var gapText = pd.achieved
+        ? '<span class="tag tag-done">目标达成 · 100%</span>'
+        : (gapBits.length ? '（' + gapBits.join('、') + ' 到 100%）' : '');
+      detailHtml =
+        '<span class="item"><span>换算明细</span><b>时长 ' + pd.hoursDone + '/' + pd.targetHours + 'h（' + pd.hoursRatio + '%）· 测评 ' + pd.examsDone + '/' + pd.targetExams + ' 次（' + pd.examsRatio + '%）</b></span>' +
+        '<span class="item"><span>距 100%</span><b>' + (pd.achieved ? '全部目标已达成' : (gapBits.join('、') || '—')) + '</b></span>';
+    }
+
     document.getElementById('modal-summary').innerHTML =
       '<span class="item"><span>备考课程</span><b>' + s.subjects.map(S.esc).join('、') + '</b></span>' +
-      '<span class="item"><span>备考进度</span><b>' + Number(s.progress) + '%</b></span>' +
+      '<span class="item"><span>备考进度</span><b>' + Number(s.progress) + '%' + (pd && pd.achieved ? ' <span class="tag tag-done">目标达成</span>' : '') + '</b></span>' +
+      detailHtml +
       '<span class="item"><span>本周时长</span><b>' + S.totalWeeklyHours(s) + ' 小时</b></span>' +
       '<span class="item"><span>最近活跃</span><b>' + S.esc(S.lastActiveLabel(s)) + '</b></span>' +
       '<span class="item"><span>阶段目标</span><b>' + S.esc(s.goal) + '</b></span>';
@@ -342,6 +358,56 @@
     document.getElementById('modal-trend').innerHTML = trendSvg(s);
     document.getElementById('modal-exams').innerHTML = examsHtml(s);
     document.getElementById('modal-timeline').innerHTML = timelineHtml(s);
+    renderCourseBlock(s);
+  }
+
+  /* ---------------- 课程进度「学到哪里」（六期） ---------------- */
+  function courseHtml(s) {
+    var marks = s.courseProgress || [];
+    var rows = s.subjects.map(function (sub) {
+      var hit = null;
+      for (var i = 0; i < marks.length; i++) {
+        if (marks[i].subject === sub) { hit = marks[i]; break; }
+      }
+      var markText = hit && hit.mark ? S.esc(hit.mark) : '<span style="color:#9AA6B2;">未登记</span>';
+      var when = hit && hit.updatedAt ? '（' + S.esc(String(hit.updatedAt).replace('T', ' ').slice(0, 16)) + '）' : '';
+      return '<div class="cfg-row" style="align-items:flex-start;"><span class="cfg-name" style="width:92px;flex:none;">' + S.esc(sub) + '</span>' +
+        '<span style="flex:1;font-size:13px;color:#12233A;">' + markText + ' <span style="color:#9AA6B2;font-size:11px;">' + when + '</span></span></div>';
+    }).join('');
+    var opts = s.subjects.map(function (sub) {
+      return '<option value="' + S.esc(sub) + '">' + S.esc(sub) + '</option>';
+    }).join('');
+    return rows +
+      '<div style="display:flex;gap:6px;margin-top:10px;align-items:center;">' +
+        '<select class="tb-select" id="cp-subject" style="flex:none;width:120px;">' + opts + '</select>' +
+        '<input type="text" class="review-input" id="cp-mark" placeholder="如：剑桥雅思12-Test3 听力精听完成" style="flex:1;">' +
+        '<button class="btn-mini primary" id="cp-save" type="button">更新进度</button>' +
+      '</div>';
+  }
+
+  function renderCourseBlock(s) {
+    var box = document.getElementById('modal-course');
+    if (!box) { return; }
+    box.innerHTML = courseHtml(s);
+  }
+
+  function initCourseProgress() {
+    var box = document.getElementById('modal-course');
+    if (!box) { return; }
+    box.addEventListener('click', function (ev) {
+      if (!ev.target.closest || !ev.target.closest('#cp-save')) { return; }
+      var s = Store.getById(state.currentId);
+      if (!s) { return; }
+      var subject = document.getElementById('cp-subject').value;
+      var mark = (document.getElementById('cp-mark').value || '').trim();
+      if (!subject || !mark) { S.toast('请选择科目并填写学到了哪里', 'warn'); return; }
+      Data.updateCourseProgress(s.id, { subject: subject, mark: mark }).then(function (saved) {
+        applyStudent(saved);
+        renderModal(saved);
+        document.getElementById('cp-mark').value = '';
+        S.toast('课程进度已更新，学员/家长端刷新后可见');
+      }).catch(function (err) { handleApiError(err, '课程进度保存失败，请重试'); });
+    });
   }
 
   /* ---------------- 添加学习记录 ---------------- */
@@ -485,6 +551,9 @@
       renderSubjectBox('pf-subjects-box', s.subjects);
       document.getElementById('pf-enroll').value = s.enrollDate;
       document.getElementById('pf-goal').value = s.goal || '';
+      document.getElementById('pf-target-hours').value = s.targetHours ? Number(s.targetHours) : '';
+      document.getElementById('pf-target-exams').value = s.targetExams ? Number(s.targetExams) : '';
+      refreshTeacherSelects(s.teacherAccount);
       wrap.style.display = 'block';
     });
 
@@ -529,8 +598,14 @@
         stage: document.getElementById('pf-stage').value,
         subjects: subjects,
         enrollDate: document.getElementById('pf-enroll').value || target.enrollDate,
-        goal: document.getElementById('pf-goal').value.trim()
+        goal: document.getElementById('pf-goal').value.trim(),
+        targetHours: Number(document.getElementById('pf-target-hours').value) || 0,
+        targetExams: Number(document.getElementById('pf-target-exams').value) || 0
       };
+      if (isAdmin()) {
+        var tSel = document.getElementById('pf-teacher');
+        if (tSel && tSel.value) { fields.teacherAccount = tSel.value; }
+      }
 
       Data.updateProfile(state.currentId, fields).then(function (saved) {
         applyStudent(saved);
@@ -699,6 +774,7 @@
       document.getElementById('ns-stage').value = '基础期';
       document.getElementById('ns-enroll').value = S.todayStr();
       document.getElementById('ns-goal').value = '';
+      refreshTeacherSelects('');
       openMask('ns-mask');
       setTimeout(function () { document.getElementById('ns-name').focus(); }, 60);
     });
@@ -733,7 +809,7 @@
       for (var i = 0; i < boxes.length; i++) { subjects.push(boxes[i].value); }
       if (!name || !subjects.length) { S.toast('请填写姓名并至少勾选一门课程', 'warn'); return; }
 
-      Data.createStudent({
+      var nsFields = {
         name: name,
         grade: document.getElementById('ns-grade').value,
         className: document.getElementById('ns-classname').value.trim(),
@@ -741,7 +817,12 @@
         subjects: subjects,
         enrollDate: document.getElementById('ns-enroll').value || S.todayStr(),
         goal: document.getElementById('ns-goal').value.trim()
-      }).then(function (saved) {
+      };
+      if (isAdmin()) {
+        var nsT = document.getElementById('ns-teacher');
+        if (nsT && nsT.value) { nsFields.teacherAccount = nsT.value; }
+      }
+      Data.createStudent(nsFields).then(function (saved) {
         var list = Store.load();
         var exists = false;
         for (var i = 0; i < list.length; i++) {
@@ -920,8 +1001,121 @@
     });
   }
 
+  /* ---------------- 归属教师（六期：admin 专属能力） ---------------- */
+  function isAdmin() {
+    var auth = Auth.get();
+    return !!auth && auth.role === 'admin';
+  }
+
+  function teacherOptions(current) {
+    return (state.teachers || []).map(function (t) {
+      if (t.status && t.status !== '在职' && t.account !== current) { return ''; }
+      return '<option value="' + S.esc(t.account) + '"' + (t.account === current ? ' selected' : '') + '>' +
+        S.esc(t.name) + (t.isAdmin ? '（教学总监）' : '') + '</option>';
+    }).join('');
+  }
+
+  /** 刷新档案/新建表单里的归属教师下拉（非 admin 隐藏） */
+  function refreshTeacherSelects(currentAccount) {
+    var items = document.querySelectorAll('.teacher-only');
+    for (var i = 0; i < items.length; i++) { items[i].hidden = !isAdmin(); }
+    if (!isAdmin()) { return; }
+    var pf = document.getElementById('pf-teacher');
+    var ns = document.getElementById('ns-teacher');
+    if (pf) { pf.innerHTML = teacherOptions(currentAccount); }
+    if (ns && !ns.options.length) { ns.innerHTML = teacherOptions(''); }
+  }
+
+  /* ---------------- 教师账号管理（六期：admin 专属） ---------------- */
+  function loadTeachers() {
+    var wrap = document.getElementById('teachers-list');
+    wrap.innerHTML = '<div class="empty-tip">加载中…</div>';
+    Data.teachers().then(function (teachers) {
+      state.teachers = teachers;
+      refreshTeacherSelects();
+      if (!teachers.length) {
+        wrap.innerHTML = '<div class="empty-tip">暂无教师账号</div>';
+        return;
+      }
+      wrap.innerHTML = teachers.map(function (t) {
+        var statusTag = t.status === '在职'
+          ? '<span class="tag tag-done">在职</span>'
+          : '<span class="tag tag-pending">已停用</span>';
+        var adminTag = t.isAdmin ? '<span class="tag tag-subject">教学总监</span>' : '';
+        var ops = '';
+        if (t.account !== (Auth.get() || {}).account) {
+          ops = '<button class="btn-mini" data-t-toggle="' + S.esc(t.account) + '" data-active="' + (t.status === '在职' ? '0' : '1') + '" type="button">' + (t.status === '在职' ? '停用' : '启用') + '</button>' +
+            '<button class="btn-mini" data-t-reset="' + S.esc(t.account) + '" type="button">重置密码</button>';
+        }
+        return '<div class="cfg-row"><span class="cfg-name" style="width:150px;flex:none;">' + S.esc(t.name) +
+          '<span style="color:#9AA6B2;font-size:11px;display:block;">' + S.esc(t.account) + (t.title ? ' · ' + S.esc(t.title) : '') + '</span></span>' +
+          statusTag + adminTag +
+          '<span style="font-size:12px;color:#6E7B88;">学员 ' + t.studentCount + ' 人</span>' + ops + '</div>';
+      }).join('');
+    }).catch(function (err) {
+      wrap.innerHTML = '<div class="empty-tip">' + S.esc(err.message || '加载失败') + '</div>';
+    });
+  }
+
+  function initTeachers() {
+    var link = document.getElementById('teachers-link');
+    if (!link) { return; }
+    if (!isAdmin()) { link.hidden = true; return; }
+    link.hidden = false;
+    link.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      openMask('teachers-mask');
+      loadTeachers();
+    });
+    document.getElementById('teachers-close').addEventListener('click', function () { closeMask('teachers-mask'); });
+    document.getElementById('teachers-mask').addEventListener('click', function (ev) {
+      if (ev.target === this) { closeMask('teachers-mask'); }
+    });
+
+    document.getElementById('t-add').addEventListener('click', function () {
+      var account = document.getElementById('t-account-new').value.trim();
+      var name = document.getElementById('t-name-new').value.trim();
+      var title = document.getElementById('t-title-new').value.trim();
+      var password = document.getElementById('t-pwd-new').value.trim();
+      if (!account || !name) { S.toast('请填写登录账号与姓名', 'warn'); return; }
+      Data.createTeacher({ account: account, name: name, title: title, password: password }).then(function () {
+        document.getElementById('t-account-new').value = '';
+        document.getElementById('t-name-new').value = '';
+        document.getElementById('t-title-new').value = '';
+        document.getElementById('t-pwd-new').value = '';
+        loadTeachers();
+        S.toast('教师「' + name + '」已创建，初始密码 ' + (password || 'zx123456'));
+      }).catch(function (err) { handleApiError(err, '创建失败，请重试'); });
+    });
+
+    document.getElementById('teachers-list').addEventListener('click', function (ev) {
+      var toggle = ev.target.closest ? ev.target.closest('[data-t-toggle]') : null;
+      if (toggle) {
+        var acc = toggle.getAttribute('data-t-toggle');
+        var active = toggle.getAttribute('data-active') === '1';
+        Data.setTeacherStatus(acc, active ? '在职' : '停用').then(function () {
+          loadTeachers();
+          S.toast('教师「' + acc + '」已' + (active ? '启用' : '停用'));
+        }).catch(function (err) { handleApiError(err, '操作失败，请重试'); });
+        return;
+      }
+      var reset = ev.target.closest ? ev.target.closest('[data-t-reset]') : null;
+      if (reset) {
+        var racc = reset.getAttribute('data-t-reset');
+        var pwd = window.prompt('为「' + racc + '」设置新密码（留空则重置为 zx123456）：', '');
+        if (pwd === null) { return; }
+        pwd = pwd.trim();
+        if (pwd && pwd.length < 6) { S.toast('密码至少 6 位', 'warn'); return; }
+        Data.resetTeacherPassword(racc, pwd).then(function () {
+          S.toast('密码已重置' + (pwd ? '' : '为 zx123456') + '，该教师会话已全部退出');
+        }).catch(function (err) { handleApiError(err, '重置失败，请重试'); });
+      }
+    });
+  }
+
+
   /* ---------------- 审计日志 ---------------- */
-  var AUDIT_ACTIONS = ['登录', '新建学员', '编辑学员档案', '停用学员', '启用学员', '评阅记录', '登记学习记录', '录入测评成绩', '导出数据', '修改密码', '新增科目', '新增班级', '停用班级', '启用班级', '修改阶段标准', '家长登录', '数据重置'];
+  var AUDIT_ACTIONS = ['登录', '新建学员', '编辑学员档案', '停用学员', '启用学员', '评阅记录', '登记学习记录', '录入测评成绩', '导出数据', '修改密码', '新增科目', '新增班级', '停用班级', '启用班级', '修改阶段标准', '家长登录', '数据重置', '新建教师', '停用教师', '启用教师', '重置教师密码', '改派学员', '登记课程进度'];
 
   function loadAudit(action) {
     var wrap = document.getElementById('audit-table-wrap');
@@ -1015,7 +1209,7 @@
     document.addEventListener('keydown', function (ev) {
       if (ev.key === 'Escape') {
         if (mask.classList.contains('open')) { closeModal(); }
-        ['ns-mask', 'qn-mask', 'export-mask', 'config-mask', 'audit-mask'].forEach(function (id) {
+        ['ns-mask', 'qn-mask', 'export-mask', 'config-mask', 'audit-mask', 'teachers-mask'].forEach(function (id) {
           if (document.getElementById(id).classList.contains('open')) { closeMask(id); }
         });
       }
@@ -1038,13 +1232,15 @@
     initConfig();
     initAudit();
     initPendingBell();
+    initCourseProgress();
+    initTeachers();
     setupAddSubject({ btn: 'rf-add-subject', row: 'rf-new-subject-row', input: 'rf-new-subject-input', ok: 'rf-new-subject-ok', cancel: 'rf-new-subject-cancel', select: 'rf-subject' });
     setupAddSubject({ btn: 'ef-add-subject', row: 'ef-new-subject-row', input: 'ef-new-subject-input', ok: 'ef-new-subject-ok', cancel: 'ef-new-subject-cancel', select: 'ef-subject' });
   }
 
   /* ---------------- 启动 ---------------- */
   function start() {
-    var auth = Auth.require('teacher');
+    var auth = Auth.require(['teacher', 'admin']);
     if (!auth) { return; }
 
     Data.bootstrap().then(function (data) {
@@ -1052,6 +1248,8 @@
         Store.useServerData(data.students);
         S.setSubjectGroups(data.subjects);
       }
+      var badge = document.getElementById('role-badge');
+      if (badge) { badge.textContent = auth.role === 'admin' ? '教学总监' : '老师'; }
       document.getElementById('topbar-user').textContent = auth.name + (auth.title ? ' · ' + auth.title : '');
       state.students = Store.load();
       refreshSubjectFilter();
@@ -1059,6 +1257,14 @@
       renderStats();
       renderGrid();
       bindEvents();
+      if (isAdmin()) {
+        Data.teachers().then(function (teachers) {
+          state.teachers = teachers;
+          refreshTeacherSelects();
+        }).catch(function () { /* 教师列表加载失败不阻塞主界面 */ });
+      } else {
+        refreshTeacherSelects();
+      }
     }).catch(function (err) {
       if (err && err.status === 401) { Auth.logout(); return; }
       S.toast('数据加载失败，请刷新页面重试', 'warn');

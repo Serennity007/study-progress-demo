@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>老师工作台 · 成都智慧象留学</title>
-  <link rel="stylesheet" href="css/style.css?v=20260830l">
+  <link rel="stylesheet" href="css/style.css?v=20260830n">
 </head>
 <body>
 
@@ -16,13 +16,14 @@
     </span>
     <span class="spacer"></span>
     <span class="user-chip">
-      <span class="role-badge">老师</span>
+      <span class="role-badge" id="role-badge">老师</span>
       <span id="topbar-user">—</span>
     </span>
     <a class="user-link pending-bell" id="pending-bell" href="#" title="待评阅记录">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
       待评阅<span class="badge-count" id="pending-badge" hidden>0</span>
     </a>
+    <a class="user-link" id="teachers-link" href="#" hidden>教师账号</a>
     <a class="user-link" id="config-link" href="#">班级与阶段配置</a>
     <a class="user-link" id="audit-link" href="#">审计日志</a>
     <a class="user-link" id="pwd-link" href="#">修改密码</a>
@@ -182,6 +183,18 @@
                 <label>阶段目标</label>
                 <input type="text" id="pf-goal" placeholder="如：10 月首考雅思总分 6.5">
               </div>
+              <div class="form-item">
+                <label>目标学习时长（小时）</label>
+                <input type="number" id="pf-target-hours" min="0" step="1" placeholder="如：60；留空则进度按记录计数">
+              </div>
+              <div class="form-item">
+                <label>目标测评次数</label>
+                <input type="number" id="pf-target-exams" min="0" step="1" placeholder="如：6；换算制：时长 80% + 测评 20%">
+              </div>
+              <div class="form-item teacher-only" hidden>
+                <label>归属教师（教学总监可改派）</label>
+                <select id="pf-teacher"></select>
+              </div>
             </div>
             <div class="form-actions">
               <button class="btn btn-ghost" type="button" id="pf-cancel">取消</button>
@@ -190,6 +203,10 @@
           </form>
         </div>
         <div class="detail-summary" id="modal-summary"></div>
+        <div class="detail-block" style="margin-bottom:16px;">
+          <h3>课程进度（学到哪里）</h3>
+          <div id="modal-course" class="cfg-list"></div>
+        </div>
         <div class="detail-grid">
           <div>
             <div class="detail-block">
@@ -341,6 +358,10 @@
               <label>阶段目标</label>
               <input type="text" id="ns-goal" placeholder="如：10 月首考雅思总分 6.5">
             </div>
+            <div class="form-item teacher-only" hidden>
+              <label>归属教师（教学总监可指定）</label>
+              <select id="ns-teacher"></select>
+            </div>
           </div>
           <div class="form-actions">
             <button class="btn btn-ghost" type="button" id="ns-cancel">取消</button>
@@ -463,6 +484,32 @@
     </div>
   </div>
 
+  <!-- 教师账号管理弹窗（教学总监专属） -->
+  <div class="modal-mask" id="teachers-mask">
+    <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="teachers-title">
+      <div class="modal-head">
+        <div class="m-title" id="teachers-title">
+          <span>教师账号管理</span>
+          <div class="m-sub">新建教师账号、启停登录、重置密码；学员归属在学员档案中改派</div>
+        </div>
+        <button class="modal-close" id="teachers-close" type="button" aria-label="关闭弹窗">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="teachers-list" class="cfg-list"></div>
+        <div class="detail-block" style="margin-top:16px;">
+          <h3>新建教师账号</h3>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+            <input type="text" class="review-input" id="t-account-new" placeholder="登录账号（字母/数字）" style="flex:1;min-width:140px;">
+            <input type="text" class="review-input" id="t-name-new" placeholder="姓名" style="flex:1;min-width:110px;">
+            <input type="text" class="review-input" id="t-title-new" placeholder="职务（选填）" style="flex:1;min-width:110px;">
+            <input type="text" class="review-input" id="t-pwd-new" placeholder="初始密码（默认 zx123456）" style="flex:1;min-width:150px;">
+            <button class="btn-mini primary" type="button" id="t-add">创建教师</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 修改密码弹窗 -->
   <div class="modal-mask" id="pwd-mask">
     <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="pwd-title">
@@ -501,9 +548,9 @@
   <!-- 待评阅下拉面板 -->
   <div class="pending-panel" id="pending-panel" hidden></div>
 
-  <script src="js/mock-data.js?v=20260830l"></script>
-  <script src="js/api.js?v=20260830l"></script>
-  <script src="js/common.js?v=20260830l"></script>
-  <script src="js/admin.js?v=20260830l"></script>
+  <script src="js/mock-data.js?v=20260830n"></script>
+  <script src="js/api.js?v=20260830n"></script>
+  <script src="js/common.js?v=20260830n"></script>
+  <script src="js/admin.js?v=20260830n"></script>
 </body>
 </html>

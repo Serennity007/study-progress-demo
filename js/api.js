@@ -181,6 +181,26 @@
     },
     parentSummary: function () {
       return API.req('GET', '/api/parent/summary');
+    },
+
+    /** 六期：教师账号管理（admin） */
+    teachers: function () {
+      return API.req('GET', '/api/teachers').then(function (d) { return d.teachers; });
+    },
+    createTeacher: function (fields) {
+      return API.req('POST', '/api/teachers', fields);
+    },
+    setTeacherStatus: function (account, status) {
+      return API.req('PUT', '/api/teachers/' + encodeURIComponent(account) + '/status', { status: status });
+    },
+    resetTeacherPassword: function (account, password) {
+      return API.req('PUT', '/api/teachers/' + encodeURIComponent(account) + '/password', { password: password || '' });
+    },
+
+    /** 六期：课程进度「学到哪里」（按科目 upsert） */
+    updateCourseProgress: function (studentId, payload) {
+      return API.req('PUT', '/api/students/' + encodeURIComponent(studentId) + '/course-progress', payload)
+        .then(function (d) { return d.student; });
     }
   };
 
@@ -445,11 +465,53 @@
         student: {
           name: s.name, studentNo: s.studentNo, grade: s.grade,
           className: s.className, stage: s.stage, goal: s.goal,
-          progress: s.progress, weeklyHours: s.weeklyHours, subjects: s.subjects
+          progress: s.progress, weeklyHours: s.weeklyHours, subjects: s.subjects,
+          progressDetail: s.progressDetail || null,
+          courseProgress: s.courseProgress || [],
+          teacherName: s.teacherName || ''
         },
         recentComments: comments,
         latestExams: (s.exams || []).slice(0, 3)
       });
+    },
+
+    /** 六期演示模式：教师管理不可用（无后端） */
+    teachers: function () {
+      return Promise.reject(new Error('演示模式（无后端）不支持教师管理，请启动 backend/app.py'));
+    },
+    createTeacher: function () {
+      return Promise.reject(new Error('演示模式（无后端）不支持教师管理，请启动 backend/app.py'));
+    },
+    setTeacherStatus: function () {
+      return Promise.reject(new Error('演示模式（无后端）不支持教师管理，请启动 backend/app.py'));
+    },
+    resetTeacherPassword: function () {
+      return Promise.reject(new Error('演示模式（无后端）不支持教师管理，请启动 backend/app.py'));
+    },
+
+    /** 六期演示模式：课程进度写本地 sessionStorage（与记录同库） */
+    updateCourseProgress: function (studentId, payload) {
+      var found = findStudent(studentId);
+      var target = found.student;
+      if (!target) { return Promise.reject(new Error('未找到学员数据')); }
+      if (!target.courseProgress || Object.prototype.toString.call(target.courseProgress) !== '[object Array]') {
+        target.courseProgress = [];
+      }
+      var hit = null;
+      for (var i = 0; i < target.courseProgress.length; i++) {
+        if (target.courseProgress[i].subject === payload.subject) { hit = target.courseProgress[i]; break; }
+      }
+      if (hit) {
+        hit.mark = payload.mark;
+        hit.updatedAt = new Date().toISOString().slice(0, 19);
+      } else {
+        target.courseProgress.push({
+          subject: payload.subject, mark: payload.mark,
+          updatedAt: new Date().toISOString().slice(0, 19)
+        });
+      }
+      window.ZHXX_Store.save(found.list);
+      return Promise.resolve(target);
     }
   };
 
@@ -519,6 +581,25 @@
     /** 服务端模式返回后端科目库分组；演示模式返回 null（页面走内置目录 + sessionStorage 自定义） */
     subjects: function () {
       return API.mode === 'server' ? API.req('GET', '/api/subjects').then(function (d) { return d.groups; }) : Promise.resolve(null);
+    },
+
+    /** 六期：教师账号管理（admin 专属，服务端模式） */
+    teachers: function () {
+      return API.mode === 'server' ? API.teachers() : Demo.teachers();
+    },
+    createTeacher: function (fields) {
+      return API.mode === 'server' ? API.createTeacher(fields) : Demo.createTeacher(fields);
+    },
+    setTeacherStatus: function (account, status) {
+      return API.mode === 'server' ? API.setTeacherStatus(account, status) : Demo.setTeacherStatus(account, status);
+    },
+    resetTeacherPassword: function (account, password) {
+      return API.mode === 'server' ? API.resetTeacherPassword(account, password) : Demo.resetTeacherPassword(account, password);
+    },
+
+    /** 六期：课程进度「学到哪里」 */
+    updateCourseProgress: function (studentId, payload) {
+      return API.mode === 'server' ? API.updateCourseProgress(studentId, payload) : Demo.updateCourseProgress(studentId, payload);
     }
   };
 
